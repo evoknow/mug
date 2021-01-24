@@ -29,6 +29,7 @@ class MUG_Player
    public $endTime;
    public $jsonFile;
    public $db;
+   private $current;
 
    public function __construct()
    {
@@ -87,11 +88,12 @@ class MUG_Player
    {
 
       $matches = [];
-      foreach($this->db as $entry)
+      foreach($this->db as $this->current => $entry)
       {
           if (preg_match("/$tag/i", $entry['path']))
           {
               $matches[] = $entry;
+              break;
           }
       }
 
@@ -99,15 +101,7 @@ class MUG_Player
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
       {
-         // Stop the last song
-         $this->stop();
-
-         $target = $matches[0];
-         $path   = $target['path'];
-         $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
-         $this->log("Run $cmd");
-         proc_close(proc_open($cmd, [], $junk));
-         
+         $this->playSong($matches[0]['path']);    
 
       } else if($matchCnt > 1) {
  
@@ -117,6 +111,23 @@ class MUG_Player
       } else {
          $this->log("No match found.");
       }
+
+   }
+
+   private function playSong($path)
+   {
+     // Stop the last song
+     $this->stop();
+     $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
+     $this->log("Run $cmd");
+     proc_close(proc_open($cmd, [], $junk));
+
+     $this->db[$this->current]['stats']['count']++;
+     $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
+
+     $this->write();
+
+     $this->log($this->db[$this->current]);
 
    }
 
@@ -164,10 +175,15 @@ class MUG_Player
          $data[] = ['path' => $file, 'tags' => []]; 
       }
 
-      $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+      $this->db = $data;
+      $this->write();
 
+   }
+
+   private function write()
+   {
+      $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
       file_put_contents($this->jsonFile, $json);
-
    }
 
    private function elapsed()
