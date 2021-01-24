@@ -25,8 +25,9 @@ Current command-line <option>s:
 --stop .......... stops all music
 --stats ......... shows stats that reveals which songs (MP3) you play the most, when, etc.
 
-FUTURE TODO
+TODO LIST:
 1. Allow viewing play stats -- see what you play the most
+2. Building database using --build should retain old meta data
 2. Create/modify/delete playlists
 3. Automatic playlist 'popular' which plays songs that you play the most
 

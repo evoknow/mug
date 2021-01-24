@@ -116,13 +116,19 @@ class MUG_Player
    private function play($tag)
    {
 
+      $this->log("PLAY $tag");
       $matches = [];
       foreach($this->db as $this->current => $entry)
       {
-          if (preg_match("/$tag/i", $entry['path']))
+          if (preg_match("/$tag/mi", $entry['meta']['title']))
           {
-              $matches[] = $entry;
-              break;
+              $this->log("Matched title: $tag {$this->current}");
+              $matches[] = ['entry' => $entry, 'index' => $this->current];
+
+          } elseif (preg_match("/$tag/i", $entry['path'])) {
+
+              $this->log("Matched path: $tag {$this->current}");
+              $matches[] = ['entry' => $entry, 'index' => $this->current];
           }
       }
 
@@ -130,17 +136,28 @@ class MUG_Player
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
       {
-         $this->playSong($matches[0]['path']);    
+         $this->playSong($matches[0]['entry']['path']);    
 
       } else if($matchCnt > 1) {
  
-         $this->log("Show list");
-         $this->log($matches);
+         $this->list($matches);
         
       } else {
          $this->log("No match found.");
       }
 
+   }
+
+   private function list($list)
+   {
+      foreach($list as $i => $r)
+      {
+         $entry = $r['entry'];
+         $index = $r['index'];
+         $meta  = $entry['meta'];
+         $title = $meta['title'];
+         printf("%4d %s\n", $i+1, $title);
+      }
    }
 
    private function playSong($path)
@@ -156,7 +173,6 @@ class MUG_Player
 
      $this->write();
 
-     $this->log($this->db[$this->current]);
 
    }
 
@@ -210,7 +226,7 @@ class MUG_Player
             $existing = $data[$key]['path'];
             $dups[] = ['original' => $existing, 'duplicate' => $file];
          } else
-            $data[$key] = ['path' => $file, 'hash' => $key, 'tags' => []]; 
+            $data[$key] = ['path' => $file, 'hash' => $key, 'meta' => $this->getMeta($file)]; 
       }
 
       if (!empty($dups) && !empty($options) && $options['write'] == false)
@@ -229,6 +245,14 @@ class MUG_Player
       $this->log("Writing {$this->jsonFile}");
       $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
       file_put_contents($this->jsonFile, $json);
+   }
+
+   private function getMeta($path)
+   {
+       $title = preg_replace("/\.mp3$/i", '', basename($path));
+       $data  = ['title' => $title];
+
+       return $data;
    }
 
    private function elapsed()
