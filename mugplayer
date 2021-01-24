@@ -2,6 +2,7 @@
 <?php
 
 define('SYSTEM_PLAYER', '/usr/bin/afplay');
+define('SYSTEM_PROCESS_KILLER', '/usr/bin/killall');
 define('DEBUG_MODE', true);
 require_once('common/Utility.class');
 
@@ -35,7 +36,7 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs = "p:b";
-       $this->logArgs   = ["play:", "build"];
+       $this->logArgs   = ["play:", "build", "stop"];
 
        $this->jsonFile = sprintf("%s/.mugplayer.json", getenv('HOME'));
 
@@ -63,6 +64,7 @@ class MUG_Player
          {
             case 'build' : $this->build($options); break;
             case 'play'  : $this->play($options); break;
+            case 'stop'  : $this->stop($options); break;
             default : $this->syntax();
          }
   
@@ -71,9 +73,7 @@ class MUG_Player
 
    private function load()
    {
-
-      $this->db = json_decode(file_get_contents($this->jsonFile), true);
-
+      $this->db  = json_decode(file_get_contents($this->jsonFile), true);
       $jsonError = json_last_error();
 
       if ($jsonError != JSON_ERROR_NONE)
@@ -98,6 +98,9 @@ class MUG_Player
       // Only one MP3 matches so play it
       if (count($matches) == 1)
       {
+         // Stop the last song
+         $this->stop();
+
          $target = $matches[0];
          $path   = $target['path'];
          $cmd = sprintf("%s \"%s\" &", SYSTEM_PLAYER, $path);
@@ -112,6 +115,14 @@ class MUG_Player
         
       }
 
+   }
+
+   private function stop($options = null)
+   {
+      
+      $cmd = sprintf("%s afplay", SYSTEM_PROCESS_KILLER);
+      $this->log("Run $cmd");
+      proc_close(proc_open($cmd, [], $junk));
    }
 
    private function build($options)
