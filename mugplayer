@@ -89,30 +89,33 @@ class MUG_Player
       $matches = [];
       foreach($this->db as $entry)
       {
-          if (preg_match("/$tag/", $entry['path']))
+          if (preg_match("/$tag/i", $entry['path']))
           {
               $matches[] = $entry;
           }
       }
 
+      $matchCnt = count($matches);
       // Only one MP3 matches so play it
-      if (count($matches) == 1)
+      if ($matchCnt == 1)
       {
          // Stop the last song
          $this->stop();
 
          $target = $matches[0];
          $path   = $target['path'];
-         $cmd = sprintf("%s \"%s\" &", SYSTEM_PLAYER, $path);
+         $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
          $this->log("Run $cmd");
          proc_close(proc_open($cmd, [], $junk));
          
 
-      } else {
+      } else if($matchCnt > 1) {
  
          $this->log("Show list");
          $this->log($matches);
         
+      } else {
+         $this->log("No match found.");
       }
 
    }
@@ -120,9 +123,24 @@ class MUG_Player
    private function stop($options = null)
    {
       
+      $descriptorspec = [ 
+                           0 => ["pipe", "r"],  // STDIN
+                           1 => ["pipe", "w"],  // STDOUT
+                           2 => ["pipe", "w"],  // STDERR
+
+                        ];
+
+      $cwd = getcwd();
+      $env = null;
       $cmd = sprintf("%s afplay", SYSTEM_PROCESS_KILLER);
       $this->log("Run $cmd");
-      proc_close(proc_open($cmd, [], $junk));
+      $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
+
+      if (is_resource($process))
+      {
+          proc_close($process);
+      }
+
    }
 
    private function build($options)
