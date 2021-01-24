@@ -11,6 +11,11 @@ class Utility {
        return $options;
    }
 
+  static function getFileHash($path)
+  { 
+      return @is_file($path) ? md5_file($path) : null;
+  }
+
   static function findFiles($path, $pattern = null, $ignoreDir = '/(Library|Application)/', $showProgress = true)
   {
 
@@ -45,7 +50,7 @@ class Utility {
 
         if ($showProgress)
         {
-           echo "\033[31mred\033[37m $cnt found $file\r";
+           echo "\033[31m$cnt found $file\033[37m\r";
         }
  
 

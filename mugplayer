@@ -37,7 +37,7 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs = "p:b";
-       $this->logArgs   = ["play:", "build", "stop"];
+       $this->logArgs   = ["play:", "build", "stop", "stats", "dups"];
 
        $this->jsonFile = sprintf("%s/.mugplayer.json", getenv('HOME'));
 
@@ -52,6 +52,9 @@ class MUG_Player
    {
       printf("%s --build    ... builds the ~/Users/%s/.music.json database\n", $this->scriptName, getenv("USER"));
       printf("%s --play tag ... finds music by tag and plays it\n", $this->scriptName);
+      printf("%s --stop     ... stop playing\n", $this->scriptName);
+      printf("%s --stats    ... show stats\n", $this->scriptName);
+      printf("%s --dups     ... show dups\n", $this->scriptName);
       exit;
    }
 
@@ -64,12 +67,38 @@ class MUG_Player
          switch ($cmd)
          {
             case 'build' : $this->build($options); break;
+            case 'dups'  : $this->build(['write' => false]); break;
             case 'play'  : $this->play($options); break;
             case 'stop'  : $this->stop($options); break;
+            case 'stats' : $this->stats($options); break;
             default : $this->syntax();
          }
   
       }
+   }
+
+   private function stats()
+   {
+      $stats = [];
+      foreach($this->db as $i => $entry)
+      {
+         if (!empty($entry['stats']))
+         {
+            $stats[] = [
+                          'id'    => $i,
+                          'name'  => !empty($entry['name']) ? $entry['name'] : basename($entry['path']),
+                          'count' => $entry['stats']['count']
+                       ];
+         }
+      }
+
+      if (!$stats)
+          $this->die(_('No stats found.'));
+
+      $count = array_column($stats, 'count');
+      array_multisort($count, SORT_DESC, $stats);
+
+      $this->log($stats);
    }
 
    private function load()
@@ -170,9 +199,24 @@ class MUG_Player
       $this->log("Total time spent: " . $this->elapsed() . " seconds");
 
       $data = [];
+      $dups = [];
       foreach($list as $file)
       {
-         $data[] = ['path' => $file, 'tags' => []]; 
+   
+         $key = Util::getFileHash($file);
+
+         if (!empty($data[$key]))
+         {
+            $existing = $data[$key]['path'];
+            $dups[] = ['original' => $existing, 'duplicate' => $file];
+         } else
+            $data[$key] = ['path' => $file, 'hash' => $key, 'tags' => []]; 
+      }
+
+      if (!empty($dups) && !empty($options) && $options['write'] == false)
+      {
+          $this->log($dups);
+          return false;
       }
 
       $this->db = $data;
@@ -182,6 +226,7 @@ class MUG_Player
 
    private function write()
    {
+      $this->log("Writing {$this->jsonFile}");
       $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
       file_put_contents($this->jsonFile, $json);
    }
@@ -207,6 +252,11 @@ class MUG_Player
       echo $logEntry;
       return true;
 
+   }
+
+   private function die($msg)
+   {
+      die($msg); 
    }
 
 } // End of MUG_Player class
