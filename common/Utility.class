@@ -1,0 +1,59 @@
+<?php
+
+class Utility {
+
+   static function getArgs($short, $long)
+   {
+
+       if (!$options = getopt($short, $long))
+           return false;
+
+       return $options;
+   }
+
+  static function findFiles($path, $pattern = null, $ignoreDir = '/(Library|Application)/', $showProgress = true)
+  {
+
+     $directory = new \RecursiveDirectoryIterator($path, \FilesystemIterator::FOLLOW_SYMLINKS);
+
+     $filter = new \RecursiveCallbackFilterIterator($directory, function ($current, $key, $iterator) use ($pattern, $ignoreDir)  {
+
+	    // Skip hidden files and directories.
+	    if ($current->getFilename()[0] === '.') { return FALSE; }
+
+            // Only recurse into intended subdirectories.
+	    if ($current->isDir()) {
+
+		return !preg_match($ignoreDir, $current->getFilename());
+
+	    } else {
+	       // Only consume files of interest.
+	       return preg_match($pattern, $current->getFilename());
+	    }
+     });
+
+     $iterator = new \RecursiveIteratorIterator($filter);
+
+     $list = [];
+
+     $cnt = 0; 
+
+     foreach ($iterator as $info) 
+     {
+        $cnt++;
+        $file = $info->getPathname();
+
+        if ($showProgress)
+        {
+           echo "\033[31mred\033[37m $cnt found $file\r";
+        }
+ 
+
+        $list[] = $file;
+     }
+
+     return $list;
+  }
+
+
+} // End of Utils class

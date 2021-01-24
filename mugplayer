@@ -1,0 +1,100 @@
+#!/usr/bin/php
+<?php
+
+ini_set('memory_limit', '1G');
+define('DEBUG_MODE', true);
+require_once('common/Utility.class');
+
+use \Utility as Util;
+
+### START OF MAIN ###
+
+$app = new MUG_Player();
+$app->run();
+
+### END OF MAIN ###
+
+
+class MUG_Player
+{
+
+   const LOG_ENABLED = true;
+   public $shortArgs;
+   public $longArgs;
+   public $commands;
+   public $scriptName;
+   public $elapsedTime;
+   public $startTime;
+   public $endTime;
+
+   public function __construct()
+   {
+      
+       $this->startTime  = microtime(true);
+       $this->scriptName = basename(__FILE__);
+       $this->shortArgs = "p:b";
+       $this->logArgs   = ["play:", "build"];
+
+       if (!$this->commands  = Util::getArgs($this->shortArgs, $this->logArgs))
+          $this->syntax();
+   }
+   
+   public function syntax()
+   {
+      printf("%s --build    ... builds the ~/Users/%s/.music.json database\n", $this->scriptName, getenv("USER"));
+      printf("%s --play tag ... finds music by tag and plays it\n", $this->scriptName);
+      exit;
+   }
+
+   public function run()
+   {
+      foreach($this->commands as $cmd => $option)
+      {
+         $this->log("Process $cmd with $option");
+
+         switch ($cmd)
+         {
+            case 'build' : $this->build(); break;
+            default : $this->syntax();
+         }
+  
+      }
+   }
+
+   private function build()
+   {
+      $this->homeDir = getenv("HOME");
+      $this->log("Starting to build at " . $this->homeDir);
+      $list = Util::findFiles($this->homeDir, '/^.+\.mp3$/i');
+
+      // Util::findFiles2($this->homeDir, $list, '/^.+\.mp3$/i');
+      echo "\nTotal files: " . count($list) . "\n";
+      print_r($list);
+
+      $this->log("Total time spent: " . $this->elapsed() . " seconds");
+   }
+
+   private function elapsed()
+   {
+      return microtime(true) - $this->startTime;
+   }
+ 
+
+   private function log($x)
+   {
+
+      if (self::LOG_ENABLED == false)
+         return false;
+
+      if (is_array($x) || is_object($x))
+      {
+          $x = print_r($x, true);
+      }
+
+      $logEntry = sprintf("%s: %s - %s\n", date('m/d/y h:i:s'), getmypid(), $x);
+      echo $logEntry;
+      return true;
+
+   }
+
+} // End of MUG_Player class
