@@ -65,8 +65,6 @@ class MUG_Player
    {
       foreach($this->commands as $cmd => $options)
       {
-         $this->log("Process $cmd with $options");
-
          switch ($cmd)
          {
             case 'build'  : $this->build($options); break;
@@ -103,13 +101,13 @@ class MUG_Player
       $count = array_column($stats, 'count');
       array_multisort($count, SORT_DESC, $stats);
 
-      printf("%s %-50s %2d %22s\n", __('No.'), __('Title'), __('Played'), __('Last Played'));
+      printf("%s %-50s %s %18s\n", __('No.'), __('Title'), __('Played'), __('Last Played'));
 
       foreach($stats as $i => $r)
       {
          $name = preg_replace("/\.mp3$/i", '', $r['name']);
          $name = substr($name, 0, 50);
-         printf("%3d %-50s %2d %30s\n", $i+1, $name, $r['count'], $r['last_played']);
+         printf("%-3d %-50s %2d %30s\n", $i+1, $name, $r['count'], $r['last_played']);
       }
    }
 
@@ -136,12 +134,10 @@ class MUG_Player
       {
           if (preg_match("/$tag/mi", $entry['meta']['title']))
           {
-              $this->log("Matched title: $tag {$this->current}");
               $matches[] = ['entry' => $entry, 'index' => $this->current];
 
           } elseif (preg_match("/$tag/i", $entry['path'])) {
 
-              $this->log("Matched path: $tag {$this->current}");
               $matches[] = ['entry' => $entry, 'index' => $this->current];
           }
       }
@@ -162,7 +158,6 @@ class MUG_Player
 
          else {
 
-            $this->log("Play {$this->chosenTrack} from list");
             $this->current = $matches[$this->chosenTrack]['entry']['hash']; 
             $this->playSong($matches[$this->chosenTrack]['entry']['path']);    
          }
@@ -175,19 +170,16 @@ class MUG_Player
    private function find($tag)
    {
 
-      $this->log("FIND $tag");
       $matches = [];
 
       foreach($this->db as $this->current => $entry)
       {
           if (preg_match("/$tag/mi", $entry['meta']['title']))
           {
-              $this->log("Matched title: $tag {$this->current}");
               $matches[] = ['entry' => $entry, 'index' => $this->current];
 
           } elseif (preg_match("/$tag/i", $entry['path'])) {
 
-              $this->log("Matched path: $tag {$this->current}");
               $matches[] = ['entry' => $entry, 'index' => $this->current];
           }
       }
@@ -207,8 +199,6 @@ class MUG_Player
       $this->chosenTrack = null;
 
       $tag = Util::getLastArg();
-
-      $this->log("Check for chosen track in $tag");
 
       if (!preg_match("/^#(\d+)$/", $tag, $matches))
          return false;
@@ -237,46 +227,36 @@ class MUG_Player
    {
      // Stop the last song
      $this->stop();
+
      $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
-     $this->log("Run $cmd");
      proc_close(proc_open($cmd, [], $junk));
 
-     $this->log("Update stats for {$this->current} song");
      $this->db[$this->current]['stats']['count']++;
      $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
 
      $this->write();
-
-
    }
 
    private function stop($options = null)
    {
-      
       $descriptorspec = [ 
                            0 => ["pipe", "r"],  // STDIN
                            1 => ["pipe", "w"],  // STDOUT
                            2 => ["pipe", "w"],  // STDERR
-
                         ];
-
       $cwd = getcwd();
       $env = null;
       $cmd = sprintf("%s afplay", SYSTEM_PROCESS_KILLER);
-      $this->log("Run $cmd");
       $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
 
       if (is_resource($process))
-      {
           proc_close($process);
-      }
-
    }
 
    private function build($options)
    {
       $this->homeDir = getenv("HOME");
-      $this->log("Starting to build at " . $this->homeDir);
+      $this->log("Looking for MP3 from dir: " . $this->homeDir);
 
       if (!$list = Util::findFiles($this->homeDir, '/^.+\.mp3$/i'))
       {
