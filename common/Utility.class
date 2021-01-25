@@ -2,6 +2,22 @@
 
 class Utility {
 
+   static function getLastArg()
+   {
+
+      if (!$args = self::getRawArgs())
+          return false;
+
+      return trim(array_pop($args));
+
+   }
+
+   static function getRawArgs()
+   {
+      global $argv;
+      return $argv;
+   }
+
    static function getArgs($short, $long)
    {
 

@@ -30,6 +30,7 @@ class MUG_Player
    public $jsonFile;
    public $db;
    private $current;
+   private $chosenTrack = null;
 
    public function __construct()
    {
@@ -37,7 +38,7 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs = "p:b";
-       $this->logArgs   = ["play:", "build", "stop", "stats", "dups"];
+       $this->logArgs   = ["play:", "build", "stop", "stats", "dups", "find:", "search:" ];
 
        $this->jsonFile = sprintf("%s/.mugplayer.json", getenv('HOME'));
 
@@ -66,14 +67,15 @@ class MUG_Player
 
          switch ($cmd)
          {
-            case 'build' : $this->build($options); break;
-            case 'dups'  : $this->build(['write' => false]); break;
-            case 'play'  : $this->play($options); break;
-            case 'stop'  : $this->stop($options); break;
-            case 'stats' : $this->stats($options); break;
-            default : $this->syntax();
+            case 'build'  : $this->build($options); break;
+            case 'dups'   : $this->build(['write' => false]); break;
+            case 'play'   : $this->play($options); break;
+            case 'find'   : $this->find($options); break;
+            case 'search' : $this->find($options); break;
+            case 'stop'   : $this->stop($options); break;
+            case 'stats'  : $this->stats($options); break;
+            default       : $this->syntax();
          }
-  
       }
    }
 
@@ -116,8 +118,10 @@ class MUG_Player
    private function play($tag)
    {
 
-      $this->log("PLAY $tag");
+      $this->getChosenTrack($tag);
+
       $matches = [];
+
       foreach($this->db as $this->current => $entry)
       {
           if (preg_match("/$tag/mi", $entry['meta']['title']))
@@ -140,12 +144,69 @@ class MUG_Player
 
       } else if($matchCnt > 1) {
  
-         $this->list($matches);
+
+         if (is_null($this->chosenTrack))
+
+             $this->list($matches);
+
+         else {
+
+            $this->log("Play {$this->chosenTrack} from list");
+            $this->playSong($matches[$this->chosenTrack]['entry']['path']);    
+         }
         
       } else {
          $this->log("No match found.");
       }
+   }
 
+   private function find($tag)
+   {
+
+      $this->log("FIND $tag");
+      $matches = [];
+
+      foreach($this->db as $this->current => $entry)
+      {
+          if (preg_match("/$tag/mi", $entry['meta']['title']))
+          {
+              $this->log("Matched title: $tag {$this->current}");
+              $matches[] = ['entry' => $entry, 'index' => $this->current];
+
+          } elseif (preg_match("/$tag/i", $entry['path'])) {
+
+              $this->log("Matched path: $tag {$this->current}");
+              $matches[] = ['entry' => $entry, 'index' => $this->current];
+          }
+      }
+
+      if(count($matches) > 0) {
+ 
+         $this->list($matches);
+        
+      } else {
+
+         $this->log("No match found.");
+      }
+   }
+
+   private function getChosenTrack($tag)
+   {
+      $this->chosenTrack = null;
+
+      $tag = Util::getLastArg();
+
+      $this->log("Check for chosen track in $tag");
+
+      if (!preg_match("/^#(\d+)$/", $tag, $matches))
+         return false;
+
+      if (!$matches)
+          return false;
+
+      $this->chosenTrack = $matches[1] - 1;
+
+      return $this->chosenTrack;
    }
 
    private function list($list)
