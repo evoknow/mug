@@ -8,13 +8,15 @@ require_once('common/Utility.class');
 
 use \Utility as Util;
 
+
+function __($text) { return $text; }
+
 ### START OF MAIN ###
 
 $app = new MUG_Player();
 $app->run();
 
 ### END OF MAIN ###
-
 
 class MUG_Player
 {
@@ -88,19 +90,27 @@ class MUG_Player
          {
             $stats[] = [
                           'id'    => $i,
-                          'name'  => !empty($entry['name']) ? $entry['name'] : basename($entry['path']),
-                          'count' => $entry['stats']['count']
+                          'name'  => !empty($entry['meta']['title']) ? $entry['meta']['title'] : basename($entry['path']),
+                          'count' => $entry['stats']['count'],
+                          'last_played' => $entry['stats']['last_played']
                        ];
          }
       }
 
       if (!$stats)
-          $this->die(_('No stats found.'));
+          $this->die(__('No stats found.'));
 
       $count = array_column($stats, 'count');
       array_multisort($count, SORT_DESC, $stats);
 
-      $this->log($stats);
+      printf("%s %-50s %2d %22s\n", __('No.'), __('Title'), __('Played'), __('Last Played'));
+
+      foreach($stats as $i => $r)
+      {
+         $name = preg_replace("/\.mp3$/i", '', $r['name']);
+         $name = substr($name, 0, 50);
+         printf("%3d %-50s %2d %30s\n", $i+1, $name, $r['count'], $r['last_played']);
+      }
    }
 
    private function load()
