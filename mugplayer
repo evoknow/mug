@@ -140,6 +140,7 @@ class MUG_Player
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
       {
+         $this->current = $matches[0]['entry']['hash']; 
          $this->playSong($matches[0]['entry']['path']);    
 
       } else if($matchCnt > 1) {
@@ -152,6 +153,7 @@ class MUG_Player
          else {
 
             $this->log("Play {$this->chosenTrack} from list");
+            $this->current = $matches[$this->chosenTrack]['entry']['hash']; 
             $this->playSong($matches[$this->chosenTrack]['entry']['path']);    
          }
         
@@ -229,6 +231,7 @@ class MUG_Player
      $this->log("Run $cmd");
      proc_close(proc_open($cmd, [], $junk));
 
+     $this->log("Update stats for {$this->current} song");
      $this->db[$this->current]['stats']['count']++;
      $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
 
