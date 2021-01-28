@@ -26,10 +26,11 @@ Current command-line <option>s:
 --stats ......... shows stats that reveals which songs (MP3) you play the most, when, etc.
 
 TODO LIST:
-1. Loop support
+1. Loop support --play tag|playlist --loop will loop the song/playlist forever until --stop
 2. Building database using --build should retain old meta data
-2. Create/modify/delete playlists
-3. Automatic playlist 'popular' which plays songs that you play the most
+3. Create/modify/delete playlists
+4. Automatic playlist top{n} or 'popular' which plays songs that you play the most
+5. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
 
 ===============================================================================
 WHY CREATE mugplayer?

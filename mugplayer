@@ -2,7 +2,8 @@
 <?php
 mb_internal_encoding("utf-8");
 define('SYSTEM_PLAYER', '/usr/bin/afplay');
-define('SYSTEM_PROCESS_KILLER', '/usr/bin/killall');
+define('SYSTEM_KILLALL_BINARY', '/usr/bin/killall');
+define('SYSTEM_KILL_BINARY', '/bin/kill');
 define('DEBUG_MODE', true);
 require_once('common/Utility.class');
 
@@ -32,15 +33,19 @@ class MUG_Player
    public $db;
    private $current;
    private $chosenTrack = null;
+   private $playlistPIDFile;
+   private $homeDir;
 
    public function __construct()
    {
+       $this->homeDir    = getenv("HOME");
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs = "p:b";
        $this->logArgs   = ["play:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
 
-       $this->jsonFile = sprintf("%s/.mugplayer.json", getenv('HOME'));
+       $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
+       $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
 
        if (file_exists($this->jsonFile))
            $this->load();
@@ -282,20 +287,35 @@ class MUG_Player
      $this->stop();
 
      $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
-     proc_close(proc_open($cmd, [], $junk));
+     $process = proc_open($cmd, [], $junk);
+
+     if(is_resource($process))
+     {
+        $status = proc_get_status($process);
+
+        $pid = $status['pid'];
+        $this->log("Started process with PID: $pid");
+        proc_close($process);
+     }
 
      $this->db[$this->current]['stats']['count']++;
      $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
 
      $this->write();
+     $this->close();
    }
 
    private function playList($pl)
    {
+
+      // Stop playing
+      $this->stop();
+
       $name = $pl['name'];
       $scriptFile = sprintf("%s/.%s-playlist-%s.sh", sys_get_temp_dir(), $this->id, $pl['name']);
       $list   = $pl['list'];
-      $script = "#!/bin/bash\n\n";
+      $script  = "#!/bin/bash\n";
+      $script .= "echo $$ > {$this->playlistPIDFile}\n\n";
       $script .= "# Playlist: $name\n";
       $script .= "# Created by {$this->id} at " . date('m/d/y h:i:s A T') . "\n";
       $script .= "# YouTube channel: https://macuser.group\n";
@@ -328,7 +348,9 @@ class MUG_Player
       file_put_contents($scriptFile, $script);
 
       $this->log("Playing playlist: $name");
-      $this->_exec('/bin/bash ' . $scriptFile);
+      chmod($scriptFile, 0500);
+      $this->_exec($scriptFile);
+      $this->close();
    
    }
 
@@ -341,7 +363,25 @@ class MUG_Player
                         ];
       $cwd = getcwd();
       $env = null;
-      $cmd = sprintf("%s afplay", SYSTEM_PROCESS_KILLER);
+      
+   
+      $playlistPID = file_exists($this->playlistPIDFile) ? file_get_contents($this->playlistPIDFile) : null;
+
+      if ($playlistPID)
+      {
+         $cmd = sprintf("%s -9 %s", SYSTEM_KILL_BINARY, $playlistPID);
+         $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);  
+         $this->log("Run: $cmd");
+
+          if (is_resource($process))
+          {
+             unlink($this->playlistPIDFile);
+             proc_close($process);
+          }
+              
+      }
+
+      $cmd = sprintf("%s afplay", SYSTEM_KILLALL_BINARY);
       $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
 
       if (is_resource($process))
@@ -350,7 +390,7 @@ class MUG_Player
 
    private function build($options)
    {
-      $this->homeDir = getenv("HOME");
+      
       $this->log("Looking for MP3 from dir: " . $this->homeDir);
 
       if (!$list = Util::findFiles($this->homeDir, '/^.+\.mp3$/i'))
@@ -411,7 +451,6 @@ class MUG_Player
 
    private function write()
    {
-      $this->log("Writing {$this->jsonFile}");
       $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
       file_put_contents($this->jsonFile, $json);
    }
@@ -456,6 +495,20 @@ class MUG_Player
           $cmd .= ' &';
 
       $process = proc_open($cmd, [], $pipes, $cwd, $env);
+
+      if(is_resource($process))
+      {
+         $status = proc_get_status($process);
+         $pid    = $status['pid'];
+         proc_close($process);
+      }
+
+   }
+
+   private function close()
+   {
+      // $this->log("Closing this instance.");
+      exit;
    }
 
    private function die($msg)
