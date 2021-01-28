@@ -1,4 +1,4 @@
-# MUG
+# MUG #
 Wecome to macOS User Group (MUG) Scripts and Files
 Visit our YouTube Channel: https://macuser.group
 ====================================================================
@@ -17,7 +17,7 @@ You can also view duplicate MP3s in your system using --dups option.
 
 Syntax: `mugplayer --<optoin> [value]`
 
-## Available options:
+## Available options: ##
 --build ....................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
 --play title | tag | playlist . plays a song by title or tag or playlist name
 --loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
@@ -27,7 +27,7 @@ Syntax: `mugplayer --<optoin> [value]`
 --dups ........................ shows duplicate songs in your system. 
 --dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
 
-## TODO:
+## TODO ##
 1. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
 1. The --build should not lose existing meta data and stats 
 1. Playlist support: create/modify/delete playlists
@@ -36,7 +36,7 @@ Syntax: `mugplayer --<optoin> [value]`
 ## AUTOMATIC PLAYLIST:
 * top{n} -- plays your top {n} songs based on stats
 
-## INSTALLATION
+## INSTALLATION ##
 From the terminal prompt, do the following:
 1. Fetch the source code from github using: git clone git@github.com:evoknow/mug.git
 1. Change directory to the mug folder using the following command: `cd mug`
@@ -45,5 +45,5 @@ From the terminal prompt, do the following:
 
 If you do not use `zsh` and use a different shell like `bash` then replace `.zshrc` with `.bashrc` in the above steps.
 
-## Frequently Asked Questions and Answers
+## Frequently Asked Questions and Answers ##
 See FAQ.md
