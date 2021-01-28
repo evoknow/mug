@@ -4,6 +4,7 @@ mb_internal_encoding("utf-8");
 define('SYSTEM_PLAYER', '/usr/bin/afplay');
 define('SYSTEM_KILLALL_BINARY', '/usr/bin/killall');
 define('SYSTEM_KILL_BINARY', '/bin/kill');
+define('SYSTEM_AT_SCHEDULER', '/usr/bin/at');
 define('DEBUG_MODE', true);
 require_once('common/Utility.class');
 
@@ -42,7 +43,7 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs = "p:b";
-       $this->logArgs   = ["play:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
+       $this->logArgs   = ["play:", "loop:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
 
        $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
        $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
@@ -78,6 +79,7 @@ class MUG_Player
             case 'build'  : $this->build($options); break;
             case 'dups'   : $this->build(['write' => false]); break;
             case 'play'   : $this->play($options); break;
+            case 'loop'   : $this->play($options, true); break;
             case 'find'   : $this->find($options); break;
             case 'search' : $this->find($options); break;
             case 'create' : $this->create($options); break;
@@ -140,7 +142,7 @@ class MUG_Player
       }
    }
 
-   private function play($tag)
+   private function play($tag, $loop = false)
    {
       $this->getChosenTrack($tag);
       $matches  = $this->findSong($tag);
@@ -150,7 +152,10 @@ class MUG_Player
       if ($matchCnt == 1)
       {
          $this->current = $matches[0]['entry']['hash']; 
-         $this->playSong($matches[0]['entry']['path']);    
+         if (!$loop)
+             $this->playSong($matches[0]['entry']['path']);   
+         else
+             $this->playLoop($matches[0]['entry'], $loop); 
 
       // Hmm, we have more than one match so..
       } else if($matchCnt > 1) {
@@ -163,7 +168,10 @@ class MUG_Player
          // User selected #n track so lets play it
          else {
             $this->current = $matches[$this->chosenTrack]['entry']['hash']; 
-            $this->playSong($matches[$this->chosenTrack]['entry']['path']);    
+            if (!$loop)
+                $this->playSong($matches[$this->chosenTrack]['entry']['path']); 
+            else
+                $this->playLoop($matches[$this->chosenTrack]['entry'], $loop);
          }
       } 
       
@@ -177,7 +185,7 @@ class MUG_Player
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
       {
-         $this->playList($matches[0]);
+         $this->playList($matches[0], $loop);
 
       } else if($matchCnt > 1) {
  
@@ -188,7 +196,7 @@ class MUG_Player
 
          // User chose a playlist using #n so lets play it
          else {
-            $this->playList($matches[$this->chosenTrack]);    
+            $this->playList($matches[$this->chosenTrack], $loop);    
          }        
       } 
    }
@@ -292,9 +300,7 @@ class MUG_Player
      if(is_resource($process))
      {
         $status = proc_get_status($process);
-
         $pid = $status['pid'];
-        $this->log("Started process with PID: $pid");
         proc_close($process);
      }
 
@@ -305,13 +311,14 @@ class MUG_Player
      $this->close();
    }
 
-   private function playList($pl)
+   private function playList($pl, $loop = false)
    {
-
       // Stop playing
       $this->stop();
 
       $name = $pl['name'];
+
+      $this->log("Play $name playlist loop: $loop");
       $scriptFile = sprintf("%s/.%s-playlist-%s.sh", sys_get_temp_dir(), $this->id, $pl['name']);
       $list   = $pl['list'];
       $script  = "#!/bin/bash\n";
@@ -322,6 +329,13 @@ class MUG_Player
       $script .= "##########################################\n\n";
 
       $timeFlag = (DEBUG_MODE) ? '-t 10' : '';
+
+      if ($loop)
+      {
+         $script .= "while : \n";
+         $script .= "do\n";
+      }
+         
 
       foreach($list as $i => $r)
       {
@@ -339,8 +353,13 @@ class MUG_Player
          $script .= $cmd . "\n\n";
       }
 
-      if (DEBUG_MODE)
+      if (DEBUG_MODE && !$loop)
          $script .= sprintf("/usr/bin/osascript -e 'display notification \"Playlist: $name completed\"'\n");
+
+      if ($loop)
+      {
+          $script .= "\ndone\n";
+      }
 
       $script .= "# Remove the playlist shell script\n";
       $script .= '/bin/rm -- "$0"' . "\n";
@@ -348,10 +367,27 @@ class MUG_Player
       file_put_contents($scriptFile, $script);
 
       $this->log("Playing playlist: $name");
-      chmod($scriptFile, 0500);
+      chmod($scriptFile, 0700);
       $this->_exec($scriptFile);
       $this->close();
    
+   }
+
+   private function playLoop($entry)
+   {
+        $pl = [];
+
+        $pl['name']   = 'loop';
+        $pl['list'][] = [ 
+           
+                         'id'     => $entry['hash'],
+                         'title'  => $entry['meta']['title'],
+                         'count'  => 1
+      
+                        ];
+
+        $pl['count'] = 1;
+        $this->playList($pl, true);
    }
 
    private function stop($options = null)
@@ -371,7 +407,6 @@ class MUG_Player
       {
          $cmd = sprintf("%s -9 %s", SYSTEM_KILL_BINARY, $playlistPID);
          $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);  
-         $this->log("Run: $cmd");
 
           if (is_resource($process))
           {
