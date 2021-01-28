@@ -1,5 +1,12 @@
 #!/usr/bin/php
 <?php
+/*
+ *  mugplayer is a command-line tool for playing songs (MP3) and playlists
+ *  To learn more about this tool, visit: https://macuser.group YouTube channel
+ *  Copyright (c) 2021 by Mohammed Kabir (kabir@macuser.group)
+ *  Published as an open source software under the MIT license.
+ */
+
 mb_internal_encoding("utf-8");
 define('SYSTEM_PLAYER', '/usr/bin/afplay');
 define('SYSTEM_KILLALL_BINARY', '/usr/bin/killall');
@@ -12,12 +19,13 @@ use \Utility as Util;
 
 function __($text) { return $text; }
 
-### START OF MAIN ###
-
+/*
+ * Start of main()
+ */
 $app = new MUG_Player();
 $app->run();
 
-### END OF MAIN ###
+/* end of main */
 
 class MUG_Player
 {
@@ -36,14 +44,17 @@ class MUG_Player
    private $chosenTrack = null;
    private $playlistPIDFile;
    private $homeDir;
+   private $timezone;
+   private $sleepTime = 0;
 
    public function __construct()
    {
        $this->homeDir    = getenv("HOME");
+       $this->setTimezone();
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
-       $this->shortArgs = "p:b";
-       $this->logArgs   = ["play:", "loop:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
+       $this->shortArgs  = "p:b";
+       $this->logArgs    = ["play:", "loop:", "at:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
 
        $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
        $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
@@ -57,16 +68,18 @@ class MUG_Player
    
    public function syntax()
    {
-      printf("%s --build                   ... builds the ~/Users/%s/.mugplayer.json database\n", $this->scriptName, getenv("USER"));
-      printf("%s --play title|tag|playlist ... plays song by title or tag or entire playlist it\n", $this->scriptName);
-      printf("%s --loop title|tag|playlist ... plays song by title or tag or entire playlist until stopped\n", $this->scriptName);
-      printf("%s --stop                    ... stop playing\n", $this->scriptName);
-      printf("%s --stats                   ... show stats\n", $this->scriptName);
-      printf("%s --dups                    ... show dups\n", $this->scriptName);
-      printf("%s --create name             ... create a playlist\n", $this->scriptName);
-      printf("%s --view name               ... vew a playlist\n", $this->scriptName);
-      printf("%s --add title <list>        ... add title to current or named playlist\n", $this->scriptName);
-      printf("%s --del title <list>        ... delete title from current or named playlist\n", $this->scriptName);
+      $n = $this->scriptName;
+      printf("%s --build                     ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
+      printf("%s --play title|tag|playlist   ... plays song by title or tag or entire playlist it\n", $n);
+      printf("%s --loop title|tag|playlist   ... plays song by title or tag or entire playlist until stopped\n", $n);
+      printf("%s --at hh:mm:ss  tag|playlist ... play the song or playlist at hh:mm:ss\n", $n);
+      printf("%s --stop                      ... stop playing\n", $n);
+      printf("%s --stats                     ... show stats\n", $n);
+      printf("%s --dups                      ... show dups\n", $n);
+      printf("%s --create name               ... create a playlist\n", $n);
+      printf("%s --view name                 ... vew a playlist\n", $n);
+      printf("%s --add title <list>          ... add title to current or named playlist\n", $n);
+      printf("%s --del title <list>          ... delete title from current or named playlist\n", $n);
       exit;
    }
 
@@ -87,9 +100,18 @@ class MUG_Player
             case 'view'   : $this->view($options); break;
             case 'stop'   : $this->stop($options); break;
             case 'stats'  : $this->stats(); break;
+            case 'at'     : $this->at($options); break;
             default       : $this->syntax();
          }
       }
+
+      $this->die();
+   }
+
+
+   private function dups()
+   {
+      $this->log("Show duplicate MP3 files. *** COMING SOON ***");
    }
 
    private function stats($show = true)
@@ -151,11 +173,9 @@ class MUG_Player
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
       {
-         $this->current = $matches[0]['entry']['hash']; 
-         if (!$loop)
-             $this->playSong($matches[0]['entry']['path']);   
-         else
-             $this->playLoop($matches[0]['entry'], $loop); 
+         $song          = $matches[0]['entry'];
+         $this->current = $song['hash']; 
+         return (!$loop) ? $this->playSong($song['path']) : $this->playLoop($song, $loop); 
 
       // Hmm, we have more than one match so..
       } else if($matchCnt > 1) {
@@ -163,42 +183,32 @@ class MUG_Player
          // If the user hasn't selected one using #n, 
          // show the list of matches 
          if (is_null($this->chosenTrack))
-             $this->list($matches);
+             return $this->list($matches);
 
-         // User selected #n track so lets play it
-         else {
-            $this->current = $matches[$this->chosenTrack]['entry']['hash']; 
-            if (!$loop)
-                $this->playSong($matches[$this->chosenTrack]['entry']['path']); 
-            else
-                $this->playLoop($matches[$this->chosenTrack]['entry'], $loop);
-         }
+         // User selected #n track so lets play it   
+         $song          = $matches[$this->chosenTrack]['entry'];
+         $this->current = $song['hash']; 
+         return (!$loop) ? $this->playSong($song['path']) : $this->playLoop($song, $loop);
       } 
       
       // Hmm, no match for MP3, so lets find out if a
       // playlist matches the tag
       if (!$matches = $this->findPlaylist($tag))
-         $this->log("No MP3 or playlist found for: $tag.");
+         $this->log("No song or playlist found for: $tag.");
 
       $matchCnt = count($matches);
 
       // Only one MP3 matches so play it
       if ($matchCnt == 1)
-      {
-         $this->playList($matches[0], $loop);
-
-      } else if($matchCnt > 1) {
+          return $this->playList($matches[0], $loop);
  
-         // If more than one playlist matches the tag and the
-         // user hasn't chosen the playlist using #n, show list
-         if (is_null($this->chosenTrack))
-             $this->list($matches);
+      // If more than one playlist matches the tag and the
+      // user hasn't chosen the playlist using #n, show list
+      if (is_null($this->chosenTrack))
+            return $this->list($matches);
 
-         // User chose a playlist using #n so lets play it
-         else {
-            $this->playList($matches[$this->chosenTrack], $loop);    
-         }        
-      } 
+      // User chose a playlist using #n so lets play it
+      return $this->playList($matches[$this->chosenTrack], $loop);    
    }
 
    private function find($tag)
@@ -207,7 +217,6 @@ class MUG_Player
           return $this->log("No match found.");
 
       $this->list($matches);
-
    }
 
    private function findPlaylist($tag)
@@ -224,19 +233,9 @@ class MUG_Player
           return $matches;
       }
 
-      $this->log("Find playlist using tag: $tag");
+      // Find playlist in DB
+      // TO BE DONE
 
-      foreach($this->db as $this->current => $entry)
-      {
-          if (preg_match("/$tag/mi", $entry['meta']['title']))
-          {
-              $matches[] = ['entry' => $entry, 'index' => $this->current];
-
-          } elseif (preg_match("/$tag/i", $entry['path'])) {
-
-              $matches[] = ['entry' => $entry, 'index' => $this->current];
-          }
-      }
 
       return $matches;
    }
@@ -263,14 +262,13 @@ class MUG_Player
    private function getChosenTrack($tag)
    {
       $this->chosenTrack = null;
-
       $tag = Util::getLastArg();
 
       if (!preg_match("/^#(\d+)$/", $tag, $matches))
          return false;
 
       if (!$matches)
-          return false;
+            return false;
 
       $this->chosenTrack = $matches[1] - 1;
 
@@ -291,24 +289,24 @@ class MUG_Player
 
    private function playSong($path)
    {
-     // Stop the last song
-     $this->stop();
+      // Stop playing 
+      $this->stop();
 
-     $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
-     $process = proc_open($cmd, [], $junk);
+      $cmd = sprintf("%s -q 1 \"%s\" &", SYSTEM_PLAYER, $path);
+      $process = proc_open($cmd, [], $junk);
 
-     if(is_resource($process))
-     {
-        $status = proc_get_status($process);
-        $pid = $status['pid'];
-        proc_close($process);
-     }
+      if(is_resource($process))
+      {
+         $status = proc_get_status($process);
+         $pid = $status['pid'];
+         proc_close($process);
+      }
 
-     $this->db[$this->current]['stats']['count']++;
-     $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
+      $this->db[$this->current]['stats']['count']++;
+      $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
 
-     $this->write();
-     $this->close();
+      $this->write();
+      $this->close();
    }
 
    private function playList($pl, $loop = false)
@@ -323,6 +321,14 @@ class MUG_Player
       $list   = $pl['list'];
       $script  = "#!/bin/bash\n";
       $script .= "echo $$ > {$this->playlistPIDFile}\n\n";
+
+      // If this playlist needs to be played at a future time
+      // insert sleep delay
+      if ($this->sleepTime)
+      {
+         $script .= "sleep {$this->sleepTime};\n";
+      }
+
       $script .= "# Playlist: $name\n";
       $script .= "# Created by {$this->id} at " . date('m/d/y h:i:s A T') . "\n";
       $script .= "# YouTube channel: https://macuser.group\n";
@@ -378,12 +384,10 @@ class MUG_Player
         $pl = [];
 
         $pl['name']   = 'loop';
-        $pl['list'][] = [ 
-           
+        $pl['list'][] = [  
                          'id'     => $entry['hash'],
                          'title'  => $entry['meta']['title'],
                          'count'  => 1
-      
                         ];
 
         $pl['count'] = 1;
@@ -400,7 +404,6 @@ class MUG_Player
       $cwd = getcwd();
       $env = null;
       
-   
       $playlistPID = file_exists($this->playlistPIDFile) ? file_get_contents($this->playlistPIDFile) : null;
 
       if ($playlistPID)
@@ -412,8 +415,7 @@ class MUG_Player
           {
              unlink($this->playlistPIDFile);
              proc_close($process);
-          }
-              
+          } 
       }
 
       $cmd = sprintf("%s afplay", SYSTEM_KILLALL_BINARY);
@@ -421,20 +423,20 @@ class MUG_Player
 
       if (is_resource($process))
           proc_close($process);
+
+      return true;
    }
 
    private function build($options)
-   {
-      
-      $this->log("Looking for MP3 from dir: " . $this->homeDir);
+   {     
+      $this->log("Looking for songs in dir: " . $this->homeDir);
 
       if (!$list = Util::findFiles($this->homeDir, '/^.+\.mp3$/i'))
       {
-          $this->log("No MP3 files found in {$this->homeDir}");
+          $this->log("No songs found in {$this->homeDir}");
           return false;
       }
  
-
       echo "\nTotal files: " . count($list) . "\n";
       $this->log("Total time spent: " . $this->elapsed() . " seconds");
 
@@ -442,7 +444,6 @@ class MUG_Player
       $dups = [];
       foreach($list as $file)
       {
-   
          $key = Util::getFileHash($file);
 
          if (!empty($data[$key]))
@@ -461,7 +462,25 @@ class MUG_Player
 
       $this->db = $data;
       $this->write();
+      
+      return true;
+   }
 
+   private function at($when)
+   {
+      $tag = Util::getLastArg();
+      $now  = time();
+      $sch  = strtotime("today $when");
+   
+      if ($sch < $now)
+          $sch = strtotime("+1 day $when");
+      
+      $sleep = $sch - time();
+      $start = date('m/d/y h:i A T', $sch);
+      $this->log("Scheduling $tag at $start  sleep: $sleep seconds");
+
+      $this->sleepTime = $sleep;
+      $this->play($tag);
    }
 
    private function create($name)
@@ -503,10 +522,8 @@ class MUG_Player
       return microtime(true) - $this->startTime;
    }
  
-
    private function log($x)
    {
-
       if (self::LOG_ENABLED == false)
          return false;
 
@@ -515,10 +532,9 @@ class MUG_Player
           $x = print_r($x, true);
       }
 
-      $logEntry = sprintf("%s: %s - %s\n", date('m/d/y h:i:s'), getmypid(), $x);
+      $logEntry = sprintf("%s: %s\n", date('h:i:s'), $x);
       echo $logEntry;
       return true;
-
    }
 
    private function _exec($cmd, $bg = true)
@@ -546,9 +562,15 @@ class MUG_Player
       exit;
    }
 
-   private function die($msg)
+   private function die($msg = null)
    {
       die($msg); 
+   }
+
+   private function setTimezone()
+   {
+      $this->timezone = Util::getMacOSLocalTimezone();
+      date_default_timezone_set ($this->timezone);
    }
 
 } // End of MUG_Player class

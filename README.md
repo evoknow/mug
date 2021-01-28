@@ -19,18 +19,20 @@ Syntax: ./mugplayer --<option> [value]
 
 Current command-line <option>s:
 
---build ......... scans your entire system and builds a catalog in $HOME/.mugplayer.json
---dups  ......... shows duplicate MP3 in your system
---play tag ...... plays a MP3 in the background by finding it using partial name / tag search
---stop .......... stops all music
---stats ......... shows stats that reveals which songs (MP3) you play the most, when, etc.
+--build ................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
+--dups  ................... shows duplicate MP3 in your system
+--play tag | playlist ...... plays a MP3 by tag or playlist name
+--loop tag | playlist ...... plays a MP3 or playlist forever until stopped using --stop
+--stop ..................... stops all music
+--stats .................... shows stats that reveals which songs (MP3) you play the most, when, etc.
 
 TODO LIST:
-1. Loop support --play tag|playlist --loop will loop the song/playlist forever until --stop
+1. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
 2. Building database using --build should retain old meta data
 3. Create/modify/delete playlists
-4. Automatic playlist top{n} or 'popular' which plays songs that you play the most
-5. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
+
+AUTOMATIC PLAYLIST:
+* top{n} -- plays your top {n} songs based on stats
 
 ===============================================================================
 WHY CREATE mugplayer?
