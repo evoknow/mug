@@ -12,7 +12,7 @@ define('SYSTEM_PLAYER', '/usr/bin/afplay');
 define('SYSTEM_KILLALL_BINARY', '/usr/bin/killall');
 define('SYSTEM_KILL_BINARY', '/bin/kill');
 define('SYSTEM_AT_SCHEDULER', '/usr/bin/at');
-define('DEBUG_MODE', true);
+define('DEBUG_MODE', getenv('USER') == "kabir" ? true : false);
 require_once('common/Utility.class');
 
 use \Utility as Util;
@@ -106,12 +106,6 @@ class MUG_Player
       }
 
       $this->die();
-   }
-
-
-   private function dups()
-   {
-      $this->log("Show duplicate MP3 files. *** COMING SOON ***");
    }
 
    private function stats($show = true)
@@ -449,21 +443,62 @@ class MUG_Player
          if (!empty($data[$key]))
          {
             $existing = $data[$key]['path'];
-            $dups[] = ['original' => $existing, 'duplicate' => $file];
+            $dups[$key]['original'] = $existing;
+            $dups[$key]['dups'][]   = $file;
          } else
             $data[$key] = ['path' => $file, 'hash' => $key, 'meta' => $this->getMeta($file)]; 
       }
 
-      if (!empty($dups) && !empty($options) && $options['write'] == false)
-      {
-          $this->log($dups);
+      if (!empty($dups))
+          return $this->dups($dups);
+
+      if ($options['write'] == false)
           return false;
-      }
 
       $this->db = $data;
       $this->write();
       
       return true;
+   }
+
+   private function dups($list)
+   {
+
+       $cmd = Util::getLastArg();
+       
+       $cmd = preg_match("/(remove|delete|rm)/i", $cmd) ? 'delete' : null;
+       $output = null;
+
+       if ($cmd == "delete")
+       {
+          $output  = "#!/bin/bash\n#\n#\n";
+          $output .= "# Please run the remove-dup.sh script only if you wish to delete all the duplicates\n";
+          $output .= "echo \"This will delete duplicate songs (MP3) from your storage\"\n";
+          $output .= "echo \"You have ~10 seconds to press control+c to break out\"\n";
+          $output .= "sleep 15\n";
+         
+       }
+
+       foreach($list as $key => $files)
+       {
+          $original = $files['original'];
+
+          $output .= "# Original: $original\n";
+          foreach($files['dups'] as $duplicate)
+          {
+              if ($cmd == 'delete')
+                 $output .= "/bin/rm -f \"$duplicate\";\n";
+              else
+                 $output .= $duplicate . "\n";
+          }
+
+          $output .= "\n"; 
+       }
+
+       // echo $output;
+       file_put_contents("remove-dups.sh", $output);
+       chmod("remove-dups.sh", 0700);
+       $this->log("See remove-dup.sh for details");
    }
 
    private function at($when)
