@@ -9,38 +9,41 @@ USE THEM AS-IS AT YOUR OWN RISK!
 mugplayer -- a command-line mp3 player that scans your entire storage
 for MP3 files and catalogs them into a JSON database in $HOME/.mugplayer.json
 
-You can use this player to play a MP3 file using simple keyword which 
+You can use this player to play a song using simple keyword which 
 can be part of the name. Or you can add tags to each MP3 and access them
 via tags.
 
 You can also view duplicate MP3s in your system using --dups option.
 
-Syntax: ./mugplayer --<option> [value]
+Syntax: `mugplayer --<optoin> [value]`
 
-Current command-line <option>s:
+## Available options:
+--build ....................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
+--play title | tag | playlist . plays a song by title or tag or playlist name
+--loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
+--stop ........................ stops playing song or playlist
+--stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
+--tag title | playlist <tag> .. tag the named title or playlist
+--dups ........................ shows duplicate songs in your system. 
+--dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
 
---build ................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
---dups  ................... shows duplicate MP3 in your system
---play tag | playlist ...... plays a MP3 by tag or playlist name
---loop tag | playlist ...... plays a MP3 or playlist forever until stopped using --stop
---stop ..................... stops all music
---stats .................... shows stats that reveals which songs (MP3) you play the most, when, etc.
-
-TODO LIST:
+## TODO:
 1. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
-2. Building database using --build should retain old meta data
-3. Create/modify/delete playlists
+1. The --build should not lose existing meta data and stats 
+1. Playlist support: create/modify/delete playlists
+1. Tag support: create/modify/delete tags for songs and playlist
 
-AUTOMATIC PLAYLIST:
+## AUTOMATIC PLAYLIST:
 * top{n} -- plays your top {n} songs based on stats
 
-===============================================================================
-WHY CREATE mugplayer?
-If you are well organized and keep your music neatly organized and love
-the Apple Music player, you don't need this tool.
+## INSTALLATION
+From the terminal prompt, do the following:
+1. Fetch the source code from github using: git clone git@github.com:evoknow/mug.git
+1. Change directory to the mug folder using the following command: `cd mug`
+1. Run: `echo "alias mugplayer=$PWD/mugplayer" >> ~/.zshrc` to create a ZSH alias for easy access next time
+1. Run: `source ~/.zshrc`
 
-I don't like playing music using the Apple's default music player.
-And I am not organized when it comes to my MP3 music files. So I prefer
-the system to find the music using part of the name or a tag and play
-it in the background while I am working on a terminal.
-===============================================================================
+If you do not use `zsh` and use a different shell like `bash` then replace `.zshrc` with `.bashrc` in the above steps.
+
+## Frequently Asked Questions and Answers
+See FAQ.md

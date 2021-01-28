@@ -463,7 +463,6 @@ class MUG_Player
 
    private function dups($list)
    {
-
        $cmd = Util::getLastArg();
        
        $cmd = preg_match("/(remove|delete|rm)/i", $cmd) ? 'delete' : null;
@@ -489,16 +488,22 @@ class MUG_Player
               if ($cmd == 'delete')
                  $output .= "/bin/rm -f \"$duplicate\";\n";
               else
-                 $output .= $duplicate . "\n";
+                 $output .= "# Duplicate: $duplicate\n";
           }
 
           $output .= "\n"; 
        }
 
        // echo $output;
-       file_put_contents("remove-dups.sh", $output);
-       chmod("remove-dups.sh", 0700);
-       $this->log("See remove-dup.sh for details");
+       if ($cmd == "delete")
+       {
+         file_put_contents("remove-dups.sh", $output);
+         chmod("remove-dups.sh", 0700);
+         echo __("See remove-dup.sh in the current directory for details\n");
+       } else {
+          echo $output;
+       }
+
    }
 
    private function at($when)
