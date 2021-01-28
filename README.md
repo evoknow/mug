@@ -1,10 +1,10 @@
 # MUG #
 Wecome to macOS User Group (MUG) Scripts and Files
 Visit our YouTube Channel: https://macuser.group
-====================================================================
+
 We create experimental command-line tools for macOS.
 USE THEM AS-IS AT YOUR OWN RISK! 
-====================================================================
+
 
 mugplayer -- a command-line mp3 player that scans your entire storage
 for MP3 files and catalogs them into a JSON database in $HOME/.mugplayer.json
@@ -18,14 +18,14 @@ You can also view duplicate MP3s in your system using --dups option.
 Syntax: `mugplayer --<optoin> [value]`
 
 ## Available options: ##
---build ....................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
---play title | tag | playlist . plays a song by title or tag or playlist name
---loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
---stop ........................ stops playing song or playlist
---stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
---tag title | playlist <tag> .. tag the named title or playlist
---dups ........................ shows duplicate songs in your system. 
---dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
+* --build ....................... scans your entire system and builds a catalog in $HOME/.mugplayer.json
+* --play title | tag | playlist . plays a song by title or tag or playlist name
+* --loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
+* --stop ........................ stops playing song or playlist
+* --stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
+* --tag title | playlist <tag> .. tag the named title or playlist
+* --dups ........................ shows duplicate songs in your system. 
+* --dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
 
 ## TODO ##
 1. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
