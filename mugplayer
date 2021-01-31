@@ -241,10 +241,25 @@ class MUG_Player
       }
 
       // Find playlist in DB
-      // TO BE DONE
+      if (!$playlists = $this->db['playlists'])
+          return $matches;
+
+      foreach($playlists as $p)
+      {
+         $name = $p['name'];
+         if (preg_match("/^$tag$/i", $name)) 
+         {
+             foreach($p['songs'] as $hash => $info)
+             {
+                $list[] = ['id' => $hash, 'title' => $info['meta']['title']];
+             }
+             $matches[] = ['name' => $name, 'list' => $list, 'count' => count($list)];
+             return $matches;   
+         }
+      }
 
 
-      return $matches;
+      return false;
    }
 
    private function findSong($tag)
