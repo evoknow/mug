@@ -40,12 +40,15 @@ class MUG_Player
    public $endTime;
    public $jsonFile;
    public $db;
-   private $current;
+   private $currentSong;
    private $chosenTrack = null;
    private $playlistPIDFile;
    private $homeDir;
    private $timezone;
    private $sleepTime = 0;
+   private $currentPlaylist = null;
+   private $currentPlaylistSlug = null;
+
 
    public function __construct()
    {
@@ -61,6 +64,15 @@ class MUG_Player
 
        if (file_exists($this->jsonFile))
            $this->load();
+
+      if (!empty($this->db['current']['song']))
+          $this->currentSong = $this->db['current']['song'];
+      
+      if (!empty($this->db['current']['playlist']))
+      {
+         $this->currentPlaylist     = $this->db['current']['playlist']['name']; 
+         $this->currentPlaylistSlug = $this->db['current']['playlist']['slug']; 
+      }
 
        if (!$this->commands  = Util::getArgs($this->shortArgs, $this->logArgs))
           $this->syntax();
@@ -96,6 +108,7 @@ class MUG_Player
             case 'find'   : $this->find($options); break;
             case 'search' : $this->find($options); break;
             case 'create' : $this->create($options); break;
+            case 'add'    : $this->add($options); break;
             case 'delete' : $this->delete($options); break;
             case 'view'   : $this->view($options); break;
             case 'stop'   : $this->stop($options); break;
@@ -168,7 +181,7 @@ class MUG_Player
       if ($matchCnt == 1)
       {
          $song          = $matches[0]['entry'];
-         $this->current = $song['hash']; 
+         $this->currentSong = $song['hash']; 
          return (!$loop) ? $this->playSong($song['path']) : $this->playLoop($song, $loop); 
 
       // Hmm, we have more than one match so..
@@ -181,7 +194,7 @@ class MUG_Player
 
          // User selected #n track so lets play it   
          $song          = $matches[$this->chosenTrack]['entry'];
-         $this->current = $song['hash']; 
+         $this->currentSong = $song['hash']; 
          return (!$loop) ? $this->playSong($song['path']) : $this->playLoop($song, $loop);
       } 
       
@@ -238,15 +251,15 @@ class MUG_Player
    {
       $matches = [];
 
-      foreach($this->db as $this->current => $entry)
+      foreach($this->db as $this->currentSong => $entry)
       {
           if (preg_match("/$tag/mi", $entry['meta']['title']))
           {
-              $matches[] = ['entry' => $entry, 'index' => $this->current];
+              $matches[] = ['entry' => $entry, 'index' => $this->currentSong];
 
           } elseif (preg_match("/$tag/i", $entry['path'])) {
 
-              $matches[] = ['entry' => $entry, 'index' => $this->current];
+              $matches[] = ['entry' => $entry, 'index' => $this->currentSong];
           }
       }
 
@@ -256,17 +269,17 @@ class MUG_Player
    private function getChosenTrack($tag)
    {
       $this->chosenTrack = null;
-      $tag = Util::getLastArg();
 
-      if (!preg_match("/^#(\d+)$/", $tag, $matches))
-         return false;
+      $args = Util::getRawArgs();
 
-      if (!$matches)
-            return false;
-
-      $this->chosenTrack = $matches[1] - 1;
-
-      return $this->chosenTrack;
+      foreach($args as $thisArg)
+      if (preg_match("/^#(\d)+$/", $thisArg, $matches))
+      {
+         $this->chosenTrack = $matches[1] - 1;
+         return $this->chosenTrack;
+      }
+         
+      return false;
    }
 
    private function list($list)
@@ -296,8 +309,9 @@ class MUG_Player
          proc_close($process);
       }
 
-      $this->db[$this->current]['stats']['count']++;
-      $this->db[$this->current]['stats']['last_played'] = date('m/d/Y h:i:s');
+      $this->db[$this->currentSong]['stats']['count']++;
+      $this->db[$this->currentSong]['stats']['last_played'] = date('m/d/Y h:i:s');
+      $this->db['current']['song'] = $this->currentSong;
 
       $this->write();
       $this->close();
@@ -525,22 +539,132 @@ class MUG_Player
 
    private function create($name)
    {
-      $this->log("Create a playlist called $name");
+      $slug      = Util::createSlug($name);
+      $playlists = $this->db['playlists'];
+
+      if (!empty($playlists[$slug]))
+      {
+         $this->log("Already exists: $name slug: $slug");
+         return false;
+      } 
+
+      $this->log("Create a playlist called $name  slug: $slug");
+      $newPlayList                  = [
+                                        'name'    => $name, 
+                                        'created' => date('m/d/y h:i:s'),
+                                        'songs'   => [],
+                                        'play-count' => 0
+                                      ];
+
+      $this->currentPlaylist        = $name;
+      $this->currentPlaylistSlug    = $slug;
+      $this->db['playlists'][$slug] = $newPlayList;
+      $this->db['current']['playlist']['name'] = $name;
+      $this->db['current']['playlist']['slug'] = $slug;
+      $this->write();
+
+      return $slug;
    }
 
-   private function add($name)
+   private function add($tag)
    {
-      $this->log("Add $name to current playlist {$this->currentPlayList}");
+      if (!$chosen = $this->getChosenSong($tag))
+         return false;
+
+      $str = Util::getLastArg();
+
+      $playlist = preg_match("/^#\d+$/", $str) ? $this->currentPlaylist : $str;
+
+      if (!$slug = $this->isExistingPlaylist($playlist))
+      {
+          $confirm = Util::prompt("Create a new playlist: $playlist [Yes / No] ? ",["yes", "no"]);
+
+         if ($confirm != 'YES')
+             return false;
+   
+         if (!$slug = $this->create($playlist))
+             return false;
+      }
+
+      $song = $chosen['entry'];
+      $hash = $song['hash'];
+      $title = $song['meta']['title'];
+
+      if (!empty($this->db['playlists'][$slug]['songs'][$hash]))
+      {
+         $this->log("$title already exists in the $playlist playlist!");
+         return false;
+      }
+
+      // Add song to playlist
+      $this->log("Added $title to $playlist playlist.");
+      $this->db['playlists'][$slug]['songs'][$hash] = ['added' => time()];
+
+      // Write database
+      $this->write();
+   }
+
+   private function getChosenSong($tag)
+   {
+      $this->getChosenTrack($tag);
+      $matches  = $this->findSong($tag);
+     
+      if (!$matchCnt = count($matches))
+      {
+         $this->log("No song matched for: $tag");
+         return false;
+      }
+
+      // $this->log("$tag matched $matchCnt songs");
+      if ($matchCnt == 1)
+      {
+          $song = $matches[0];
+
+      } else {
+
+         // If the user hasn't selected one using #n, 
+         // show the list of matches 
+         if (is_null($this->chosenTrack))
+             return $this->list($matches);
+
+         // User selected #n track
+         $song  = $matches[$this->chosenTrack];
+
+      }
+
+      return $song;
    }
 
    private function delete($name)
    {
-      $this->log("Delete $name to current playlist {$this->currentPlayList}");
+      if (!$slug = $this->isExistingPlaylist($name))
+      {
+          $this->log("Cannot find $name playlist.");
+          return false;
+      }
+
+      $confirm = Util::prompt("Please type 'yes' to delete or 'no' to abort: ",["yes", "no"]);
+
+      if ($confirm != 'YES')
+          return false;
+
+
+      $this->log("Delete $name playlist");
+      unset($this->db["playlists"][$slug]);
+      $this->write();
+   }
+
+   private function isExistingPlaylist($name  = null)
+   {
+      $name = empty($name) ? $this->currentPlaylist : $name;
+      $slug = Util::createSlug($name);
+      return !empty($this->db['playlists'][$slug]) ? $slug : false;
+
    }
 
    private function view($name)
    {
-      $this->log("View $name to current playlist {$this->currentPlayList}");
+      $this->log("View $name to current playlist {$this->currentPlaylist}");
    }
 
    private function write()

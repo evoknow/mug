@@ -88,4 +88,43 @@ class Utility {
      return $region . '/' . $zone;
   }
 
+  static function createSlug($x)
+  {
+     $x = trim(strtolower($x));
+     $x = preg_replace("/\s+/", '-', $x);
+     return $x;
+  }
+  
+  static function prompt($msg, $expected, $toupper = true)
+  {
+     $multiple     =  false;
+     $userResponse = false;
+
+     if (is_array($expected))
+     {
+        $multiple = true;
+        $expected = array_map('strtolower', $expected);
+     }
+     
+     $stdin = fopen("php://stdin", "r");
+     
+     $done = false;
+
+     while(!$done)
+     {
+        echo $msg;
+        $userResponse = trim(fgets($stdin));
+
+        if ($multiple && in_array(strtolower($userResponse), $expected))
+            $done = true;
+
+         elseif(!$multiple && preg_match("/$expected/i", $userResponse))
+            $done = true;
+     }
+
+   
+     return ($toupper) ? strtoupper($userResponse) : $userResponse;
+
+  }
+
 } // End of Utility class

@@ -32,6 +32,8 @@ Syntax: `mugplayer --<optoin> [value]`
 1. The --build should not lose existing meta data and stats 
 1. Playlist support: create/modify/delete playlists
 1. Tag support: create/modify/delete tags for songs and playlist
+1. Add --copy playlist /path to allow copying the playlist to a /path (e.g. USB device)
+1. If a song/tag exists, do not allow same title/tag to be used for creating a new playlist (BUG)
 
 ## AUTOMATIC PLAYLIST:
 * top{n} -- plays your top {n} songs based on stats
@@ -44,6 +46,7 @@ From the terminal prompt, do the following:
 1. Run: `source ~/.zshrc`
 
 If you do not use `zsh` and use a different shell like `bash` then replace `.zshrc` with `.bashrc` in the above steps.
+
 
 ## Frequently Asked Questions and Answers ##
 See FAQ.md
