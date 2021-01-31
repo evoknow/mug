@@ -22,18 +22,19 @@ Syntax: `mugplayer --<optoin> [value]`
 * --play title | tag | playlist . plays a song by title or tag or playlist name
 * --loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
 * --stop ........................ stops playing song or playlist
+* --at "hh:mm:ss" title.......... play song by title at hh:mm:ss
 * --stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
 * --tag title | playlist <tag> .. tag the named title or playlist
 * --dups ........................ shows duplicate songs in your system. 
 * --dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
 
 ## TODO ##
-1. Play a song or playlist at a specific time --at hh:mm:ss (creates an AT job)
-1. The --build should not lose existing meta data and stats 
-1. Playlist support: create/modify/delete playlists
-1. Tag support: create/modify/delete tags for songs and playlist
-1. Add --copy playlist /path to allow copying the playlist to a /path (e.g. USB device)
+1. Playlist support: modify/delete playlists
 1. If a song/tag exists, do not allow same title/tag to be used for creating a new playlist (BUG)
+1. Add --at "hh:mm:ss" playlist support
+1. Tag support: create/modify/delete tags for songs and playlist
+1. The --build should not lose existing meta data and stats 
+1. Add --copy playlist /path to allow copying the playlist to a /path (e.g. USB device)
 
 ## AUTOMATIC PLAYLIST:
 * top{n} -- plays your top {n} songs based on stats

@@ -677,9 +677,58 @@ class MUG_Player
 
    }
 
-   private function view($name)
+   private function view($name = null)
    {
-      $this->log("View $name to current playlist {$this->currentPlaylist}");
+
+       if (!preg_match("/(top\d+|all)/i",strtoupper($name)))
+       {
+          $slug            = Util::createSlug($name);
+          $playlist[$slug] = $this->db['playlists'][$slug]; 
+       
+       } else {
+
+           $playlist = $this->db['playlists'];
+           if (preg_match("/^top\-?(\d+)$/i", $name, $options))
+           {
+               $max   = $options[1];;
+               $stats = $this->stats(false);
+               $list  = count($stats) > $max ? array_slice($stats, 0, $max) : $stats;
+               $songs = [];
+   
+               foreach($list as $i => $info)
+               {
+                  $hash = $info['id'];
+                  $songs[$hash] = $this->db[$hash];
+               }
+   
+               $playlist[$name] = ['name' => $name, 'songs' => $songs];
+            }
+       }
+ 
+       if ($name != 'all' && empty($playlist[$name]))
+       {
+          $this->log("No playlist found for $name");
+          return false;
+       }
+
+       foreach($playlist as $slug => $p)
+       {
+         $name  = $p['name']; 
+         $songs = $p['songs'];
+         $cnt   = count($songs);
+
+         echo "\nPlaylist: $name has $cnt songs\n";
+         $i = 1;
+
+         foreach($songs as $hash => $info)
+         {
+            $song  = $this->db[$hash];
+            $title = preg_replace("/\.mp3$/i", '', $song['meta']['title']);
+            $title = mb_substr($title, 0, 60, "utf-8");
+            printf("%d %s %d %s\n", $i, Util::mb_str_pad($title, 70, '.'), $song['stats']['count'], $song['last_played']);
+            $i++;
+         }
+       }
    }
 
    private function write()
