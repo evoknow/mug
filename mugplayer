@@ -29,7 +29,8 @@ $app->run();
 
 class MUG_Player
 {
-   const LOG_ENABLED = true;
+   const VERSION = '0.5.0';
+   const COPYRIGHT = 'https://macuser.group';
    public $id = 'mugplayer';
    public $shortArgs;
    public $longArgs;
@@ -39,6 +40,7 @@ class MUG_Player
    public $startTime;
    public $endTime;
    public $jsonFile;
+   public $logFile;
    public $db;
    private $currentSong;
    private $chosenTrack = null;
@@ -57,11 +59,13 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs  = "p:b";
-       $this->logArgs    = ["play:", "loop:", "at:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:"];
+       $this->logArgs    = ["help", "play:", "loop:", "at:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:", "toggle:"];
 
        $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
        $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
+       $this->logFile         = sprintf("%s/.mugplayer.log", $this->homeDir);
 
+      
        if (file_exists($this->jsonFile))
            $this->load();
 
@@ -77,10 +81,25 @@ class MUG_Player
        if (!$this->commands  = Util::getArgs($this->shortArgs, $this->logArgs))
           $this->syntax();
    }
+
+   public function getSettingsList()
+   {
+      return $this->settings = [ 
+      
+         'notification' => 'Show/hide notification.',
+         'logging'      => "Enable/disable logging to {$this->logFile}"
+      ];
+   }
+
+   public function getSetting($x)
+   {
+      return isset($this->db["settings"][$x]) ? $this->db["settings"][$x] : 1;
+   }
    
    public function syntax()
    {
       $n = $this->scriptName;
+      printf("%s version: %s\n", $n, self::VERSION);
       printf("%s --build                     ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
       printf("%s --play title|tag|playlist   ... plays song by title or tag or entire playlist it\n", $n);
       printf("%s --loop title|tag|playlist   ... plays song by title or tag or entire playlist until stopped\n", $n);
@@ -92,6 +111,10 @@ class MUG_Player
       printf("%s --view name                 ... vew a playlist\n", $n);
       printf("%s --add title <list>          ... add title to current or named playlist\n", $n);
       printf("%s --del title <list>          ... delete title from current or named playlist\n", $n);
+      printf("%s --toggle <setting>          ... toggle a setting on/off\n", $n);
+      printf("%s --help                      ... shows this screen\n", $n);
+      printf("\nSee: %s for usage/tutorial videos.\n\n", self::COPYRIGHT);
+      
       exit;
    }
 
@@ -114,11 +137,36 @@ class MUG_Player
             case 'stop'   : $this->stop($options); break;
             case 'stats'  : $this->stats(); break;
             case 'at'     : $this->at($options); break;
+            case 'toggle' : $this->toggle($options); break;
             default       : $this->syntax();
          }
       }
 
       $this->die();
+   }
+
+   private function toggle($setting)
+   {
+      $setting = trim(strtolower($setting));
+
+      $this->getSettingsList();
+
+      if (!in_array($setting, array_keys($this->settings)))
+      {
+         if ($setting != 'help')
+             printf("Sorry %s is not a setting\n", $setting);
+
+      } else {
+         $this->db["settings"][$setting] ^= 1;
+      }
+
+   
+      foreach($this->db["settings"] as $setting => $status)
+      {
+         printf("%-30s ... %s\n", $setting, ($status) ? 'enabled' : 'disabled');
+      }
+
+      $this->write();
    }
 
    private function stats($show = true)
@@ -251,13 +299,13 @@ class MUG_Player
          {
              foreach($p['songs'] as $hash => $info)
              {
-                $list[] = ['id' => $hash, 'title' => $info['meta']['title']];
+                $title = $this->db[$hash]['meta']['title'];
+                $list[] = ['id' => $hash, 'title' => $title];
              }
              $matches[] = ['name' => $name, 'list' => $list, 'count' => count($list)];
              return $matches;   
          }
       }
-
 
       return false;
    }
@@ -337,9 +385,9 @@ class MUG_Player
       // Stop playing
       $this->stop();
 
+      $notification = $this->getSetting('notification');
       $name = $pl['name'];
 
-      $this->log("Play $name playlist loop: $loop");
       $scriptFile = sprintf("%s/.%s-playlist-%s.sh", sys_get_temp_dir(), $this->id, $pl['name']);
       $list   = $pl['list'];
       $script  = "#!/bin/bash\n";
@@ -364,7 +412,6 @@ class MUG_Player
          $script .= "while : \n";
          $script .= "do\n";
       }
-         
 
       foreach($list as $i => $r)
       {
@@ -376,13 +423,13 @@ class MUG_Player
          $cmd     = sprintf("%s %s -q 1 \"%s\";", SYSTEM_PLAYER, $timeFlag, $path);
          $script .= "# Play song #{$cnt}: $title  ($id)\n";
 
-         if (DEBUG_MODE)
+         if ($notification)
              $script .= sprintf("/usr/bin/osascript -e 'display notification \"Playing: $title\"'\n");
 
          $script .= $cmd . "\n\n";
       }
 
-      if (DEBUG_MODE && !$loop)
+      if ($notification && !$loop)
          $script .= sprintf("/usr/bin/osascript -e 'display notification \"Playlist: $name completed\"'\n");
 
       if ($loop)
@@ -395,7 +442,7 @@ class MUG_Player
 
       file_put_contents($scriptFile, $script);
 
-      $this->log("Playing playlist: $name");
+      $this->log("Playing playlist: $name songs: $cnt");
       chmod($scriptFile, 0700);
       $this->_exec($scriptFile);
       $this->close();
@@ -679,31 +726,31 @@ class MUG_Player
 
    private function view($name = null)
    {
-
        if (!preg_match("/(top\d+|all)/i",strtoupper($name)))
        {
           $slug            = Util::createSlug($name);
           $playlist[$slug] = $this->db['playlists'][$slug]; 
        
-       } else {
+       } 
 
-           $playlist = $this->db['playlists'];
-           if (preg_match("/^top\-?(\d+)$/i", $name, $options))
-           {
-               $max   = $options[1];;
-               $stats = $this->stats(false);
-               $list  = count($stats) > $max ? array_slice($stats, 0, $max) : $stats;
-               $songs = [];
-   
-               foreach($list as $i => $info)
-               {
-                  $hash = $info['id'];
-                  $songs[$hash] = $this->db[$hash];
-               }
-   
-               $playlist[$name] = ['name' => $name, 'songs' => $songs];
-            }
-       }
+      if (strtoupper($name) == "ALL")
+          $playlist = $this->db['playlists'];
+       
+      if (preg_match("/^top\-?(\d+)$/i", $name, $options))
+      {
+         $max   = $options[1];;
+         $stats = $this->stats(false);
+         $list  = count($stats) > $max ? array_slice($stats, 0, $max) : $stats;
+         $songs = [];
+
+         foreach($list as $i => $info)
+         {
+            $hash = $info['id'];
+            $songs[$hash] = $this->db[$hash];
+         }
+
+         $playlist[$name] = ['name' => $name, 'songs' => $songs];
+      }
  
        if ($name != 'all' && empty($playlist[$name]))
        {
@@ -752,16 +799,24 @@ class MUG_Player
  
    private function log($x)
    {
-      if (self::LOG_ENABLED == false)
+      $logging = $this->getSetting('logging');
+
+      if (!$logging)
          return false;
 
-      if (is_array($x) || is_object($x))
+      $logEntry = sprintf("%s: %s\n", date('h:i:s'), $x);
+      
+      if ($logging)
+         file_put_contents($this->logFile, $logEntry, FILE_APPEND);
+
+      if (DEBUG_MODE)
       {
-          $x = print_r($x, true);
+         if (is_array($x) || is_object($x))
+             $x = print_r($x, true);
+         else 
+             echo $logEntry;
       }
 
-      $logEntry = sprintf("%s: %s\n", date('h:i:s'), $x);
-      echo $logEntry;
       return true;
    }
 
