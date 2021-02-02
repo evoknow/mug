@@ -29,7 +29,7 @@ $app->run();
 
 class MUG_Player
 {
-   const VERSION = '0.5.0';
+   const VERSION = '0.5.0 (beta)';
    const COPYRIGHT = 'https://macuser.group';
    public $id = 'mugplayer';
    public $shortArgs;
@@ -98,6 +98,8 @@ class MUG_Player
    
    public function syntax()
    {
+      $usage = $this->getUsage();
+
       $n = $this->scriptName;
       printf("%s version: %s\n", $n, self::VERSION);
       printf("%s --build                     ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
@@ -113,8 +115,8 @@ class MUG_Player
       printf("%s --del title <list>          ... delete title from current or named playlist\n", $n);
       printf("%s --toggle <setting>          ... toggle a setting on/off\n", $n);
       printf("%s --help                      ... shows this screen\n", $n);
+      printf("\nYou have used this software %d time%s so far! Thank yoU!", $usage, ($usage > 1) ? 's' : '');
       printf("\nSee: %s for usage/tutorial videos.\n\n", self::COPYRIGHT);
-      
       exit;
    }
 
@@ -780,6 +782,7 @@ class MUG_Player
 
    private function write()
    {
+      $this->db['internal']['usage'] = $this->getUsage() + 1;
       $json = json_encode($this->db, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
       file_put_contents($this->jsonFile, $json);
    }
@@ -790,6 +793,12 @@ class MUG_Player
        $data  = ['title' => $title];
 
        return $data;
+   }
+
+   private function getUsage()
+   {
+      return isset($this->db['internal']['usage']) ? $this->db['internal']['usage'] : 1;
+
    }
 
    private function elapsed()

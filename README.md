@@ -5,7 +5,6 @@ Visit our YouTube Channel: https://macuser.group
 We create experimental command-line tools for macOS.
 USE THEM AS-IS AT YOUR OWN RISK! 
 
-
 mugplayer -- a command-line mp3 player that scans your entire storage
 for MP3 files and catalogs them into a JSON database in $HOME/.mugplayer.json
 
@@ -22,17 +21,24 @@ Syntax: `mugplayer --<optoin> [value]`
 * --play title | tag | playlist . plays a song by title or tag or playlist name
 * --loop title | tag | playlist . loops a song by title or tag or playlist until --stop is used to stop them
 * --stop ........................ stops playing song or playlist
+* --create <name> ............... creates a new playlist <name>
+* --add title | tag <playlist>... adds the song by title or tag in the <playlist>
 * --at "hh:mm:ss" title.......... play song by title at hh:mm:ss
 * --stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
-* --tag title | playlist <tag> .. tag the named title or playlist
 * --dups ........................ shows duplicate songs in your system. 
-* --dups remove.................. creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
+
+## Planned options: ##
+* --delete <playlist> .............. deletes named playlist
+* --delete <playlist> title | tag .. deletes the named song from the playlist by title or tag
+* --tag title | playlist <tag> ..... tag the named title or playlist
+* --xtag title | playlist <tag>..... removes the named tag from song or playlist
+* --dups remove..................... creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
 
 ## TODO ##
-1. Playlist support: modify/delete playlists
+1. Playlist support: --delete <playlist> <tag> .. delete a song from the playlist or entire playlist
 1. If a song/tag exists, do not allow same title/tag to be used for creating a new playlist (BUG)
 1. Add --at "hh:mm:ss" playlist support
-1. Tag support: create/modify/delete tags for songs and playlist
+1. Tag support: create/delete tags for songs and playlist
 1. The --build should not lose existing meta data and stats 
 1. Add --copy playlist /path to allow copying the playlist to a /path (e.g. USB device)
 
@@ -47,7 +53,6 @@ From the terminal prompt, do the following:
 1. Run: `source ~/.zshrc`
 
 If you do not use `zsh` and use a different shell like `bash` then replace `.zshrc` with `.bashrc` in the above steps.
-
 
 ## Frequently Asked Questions and Answers ##
 See FAQ.md
