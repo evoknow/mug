@@ -33,6 +33,10 @@ Syntax: `mugplayer --<optoin> [value]`
 * --tag title | playlist <tag> ..... tag the named title or playlist
 * --xtag title | playlist <tag>..... removes the named tag from song or playlist
 * --dups remove..................... creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
+* --next tag | title ............... queues the song to play next
+* --purge tag | title .............. removes a song by title or tag from database (not the actual mp3 file)
+* --rmfile tag | title ............. deletes actual MP3 files matching the tag or title
+
 
 ## TODO ##
 1. Playlist support: --delete <playlist> <tag> .. delete a song from the playlist or entire playlist
@@ -44,6 +48,9 @@ Syntax: `mugplayer --<optoin> [value]`
 
 ## AUTOMATIC PLAYLIST:
 * top{n} -- plays your top {n} songs based on stats
+* never{n} -- plays {n} songs that you have never played using mugplayer
+* lastplayed -- plays songs that you played {n}d {n}m {n}y ago
+
 
 ## INSTALLATION ##
 From the terminal prompt, do the following:

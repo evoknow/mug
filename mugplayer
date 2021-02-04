@@ -107,6 +107,7 @@ class MUG_Player
       printf("%s --loop title|tag|playlist   ... plays song by title or tag or entire playlist until stopped\n", $n);
       printf("%s --at hh:mm:ss  tag|playlist ... play the song or playlist at hh:mm:ss\n", $n);
       printf("%s --stop                      ... stop playing\n", $n);
+      printf("%s --kill                      ... kill playing\n", $n);
       printf("%s --stats                     ... show stats\n", $n);
       printf("%s --dups                      ... show dups\n", $n);
       printf("%s --create name               ... create a playlist\n", $n);
@@ -174,7 +175,11 @@ class MUG_Player
    private function stats($show = true)
    {
       $stats = [];
-      foreach($this->db as $i => $entry)
+   
+      if (empty($this->db['songs']))
+          return $stats;
+   
+      foreach($this->db['songs'] as $i => $entry)
       {
          if (!empty($entry['stats']))
          {
@@ -297,11 +302,12 @@ class MUG_Player
       foreach($playlists as $p)
       {
          $name = $p['name'];
+      
          if (preg_match("/^$tag$/i", $name)) 
          {
              foreach($p['songs'] as $hash => $info)
              {
-                $title = $this->db[$hash]['meta']['title'];
+                $title = $this->db['songs'][$hash]['meta']['title'];
                 $list[] = ['id' => $hash, 'title' => $title];
              }
              $matches[] = ['name' => $name, 'list' => $list, 'count' => count($list)];
@@ -316,7 +322,7 @@ class MUG_Player
    {
       $matches = [];
 
-      foreach($this->db as $this->currentSong => $entry)
+      foreach($this->db['songs'] as $this->currentSong => $entry)
       {
           if (preg_match("/$tag/mi", $entry['meta']['title']))
           {
@@ -374,8 +380,8 @@ class MUG_Player
          proc_close($process);
       }
 
-      $this->db[$this->currentSong]['stats']['count']++;
-      $this->db[$this->currentSong]['stats']['last_played'] = date('m/d/Y h:i:s');
+      $this->db['songs'][$this->currentSong]['stats']['count']++;
+      $this->db['songs'][$this->currentSong]['stats']['last_played'] = date('m/d/Y h:i:s');
       $this->db['current']['song'] = $this->currentSong;
 
       $this->write();
@@ -389,8 +395,10 @@ class MUG_Player
 
       $notification = $this->getSetting('notification');
       $name = $pl['name'];
+      $slug = Util::createSlug($name);
 
-      $scriptFile = sprintf("%s/.%s-playlist-%s.sh", sys_get_temp_dir(), $this->id, $pl['name']);
+      $scriptFile = sprintf("%s/.%s-playlist-%s.sh", sys_get_temp_dir(), $this->id, $slug);
+
       $list   = $pl['list'];
       $script  = "#!/bin/bash\n";
       $script .= "echo $$ > {$this->playlistPIDFile}\n\n";
@@ -419,7 +427,7 @@ class MUG_Player
       {
          $id      = $r['id'];
          $title   = $r['title'];
-         $entry   = $this->db[$id];
+         $entry   = $this->db['songs'][$id];
          $path    = $entry['path'];
          $cnt     = $i + 1;
          $cmd     = sprintf("%s %s -q 1 \"%s\";", SYSTEM_PLAYER, $timeFlag, $path);
@@ -490,7 +498,7 @@ class MUG_Player
           } 
       }
 
-      $cmd = sprintf("%s afplay", SYSTEM_KILLALL_BINARY);
+      $cmd = sprintf("%s %s", SYSTEM_KILLALL_BINARY, basename(SYSTEM_PLAYER));
       $process = proc_open($cmd, $descriptorspec, $pipes, $cwd, $env);
 
       if (is_resource($process))
@@ -510,13 +518,14 @@ class MUG_Player
       }
  
       echo "\nTotal files: " . count($list) . "\n";
-      $this->log("Total time spent: " . $this->elapsed() . " seconds");
+      $this->log("Total time: " . $this->elapsed() . " seconds");
 
       $data = [];
       $dups = [];
       foreach($list as $file)
       {
          $key = Util::getFileHash($file);
+         if (empty($key)) continue;
 
          if (!empty($data[$key]))
          {
@@ -524,19 +533,82 @@ class MUG_Player
             $dups[$key]['original'] = $existing;
             $dups[$key]['dups'][]   = $file;
          } else
+         {
+
             $data[$key] = ['path' => $file, 'hash' => $key, 'meta' => $this->getMeta($file)]; 
+
+            if (isset($this->db['songs'][$key]['stats']))
+               $data[$key]['stats'] = $this->db['songs'][$ke589y]['stats'];
+         }
+            
       }
 
-      if (!empty($dups))
-          return $this->dups($dups);
+      if (isset($options['write']) && $options['write'] == false)
+      {
+         if (!empty($dups))
+             return $this->dups($dups);
 
-      if ($options['write'] == false)
-          return false;
+         return false;
+      }
 
-      $this->db = $data;
+      $this->db['songs'] = $data;
+      $this->cleanupPlaylists(false);
+
       $this->write();
-      
       return true;
+   }
+
+   private function cleanupStats($write = false)
+   {
+      $playlists = $this->db['playlists'];
+      $allSongs  = $this->db['songs'];
+
+      foreach($playlists as $pl => $info)
+      {
+          $songsInThisPlaylist = $info['songs'];
+          foreach($songsInThisPlaylist as $hash => $details)
+          {
+             // If the old song is no longer found, remove it from playlist
+             if (empty($allSongs[$hash]))
+                 unset($songsInThisPlaylist[$hash]);
+          }
+
+          $playlists[$pl]['songs'] = $songsInThisPlaylist;
+      }
+
+      $this->db['playlists'] = $playlists;
+
+      if ($write)
+          $this->write();
+
+   }
+
+   private function cleanupPlaylists($write = false)
+   {
+      $playlists = $this->db['playlists'];
+      $allSongs  = $this->db['songs'];
+
+      if (empty($playlists))
+         return false;
+
+      foreach($playlists as $pl => $info)
+      {
+          $songsInThisPlaylist = $info['songs'];
+          foreach($songsInThisPlaylist as $hash => $details)
+          {
+             // If the old song is no longer found, remove it from playlist
+             if (empty($allSongs[$hash]))
+                 unset($songsInThisPlaylist[$hash]);
+          }
+
+          $playlists[$pl]['songs'] = $songsInThisPlaylist;
+      }
+
+      $this->db['playlists'] = $playlists;
+
+      if ($write)
+          $this->write();
+
    }
 
    private function dups($list)
@@ -728,17 +800,15 @@ class MUG_Player
 
    private function view($name = null)
    {
-       if (!preg_match("/(top\d+|all)/i",strtoupper($name)))
-       {
-          $slug            = Util::createSlug($name);
-          $playlist[$slug] = $this->db['playlists'][$slug]; 
-       
-       } 
+      $slug = Util::createSlug($name);
 
-      if (strtoupper($name) == "ALL")
+       if (!preg_match("/(top\d+|all)/i",strtoupper($name)))
+          $playlist[$slug] = $this->db['playlists'][$slug]; 
+
+      if ($slug == "all")
           $playlist = $this->db['playlists'];
        
-      if (preg_match("/^top\-?(\d+)$/i", $name, $options))
+      if (preg_match("/^top\-?(\d+)$/i", $slug, $options))
       {
          $max   = $options[1];;
          $stats = $this->stats(false);
@@ -748,13 +818,13 @@ class MUG_Player
          foreach($list as $i => $info)
          {
             $hash = $info['id'];
-            $songs[$hash] = $this->db[$hash];
+            $songs[$hash] = $this->db['songs'][$hash];
          }
 
-         $playlist[$name] = ['name' => $name, 'songs' => $songs];
+         $playlist[$slug] = ['name' => $name, 'songs' => $songs];
       }
  
-       if ($name != 'all' && empty($playlist[$name]))
+       if ($slug != 'all' && empty($playlist[$slug]))
        {
           $this->log("No playlist found for $name");
           return false;
@@ -771,7 +841,7 @@ class MUG_Player
 
          foreach($songs as $hash => $info)
          {
-            $song  = $this->db[$hash];
+            $song  = $this->db['songs'][$hash];
             $title = preg_replace("/\.mp3$/i", '', $song['meta']['title']);
             $title = mb_substr($title, 0, 60, "utf-8");
             printf("%d %s %d %s\n", $i, Util::mb_str_pad($title, 70, '.'), $song['stats']['count'], $song['last_played']);
