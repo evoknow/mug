@@ -107,13 +107,13 @@ class MUG_Player
       printf("%s --loop title|tag|playlist   ... plays song by title or tag or entire playlist until stopped\n", $n);
       printf("%s --at hh:mm:ss  tag|playlist ... play the song or playlist at hh:mm:ss\n", $n);
       printf("%s --stop                      ... stop playing\n", $n);
-      printf("%s --kill                      ... kill playing\n", $n);
+      printf("%s --kill                      ... same as --stop\n", $n);
       printf("%s --stats                     ... show stats\n", $n);
       printf("%s --dups                      ... show dups\n", $n);
       printf("%s --create name               ... create a playlist\n", $n);
       printf("%s --view name                 ... vew a playlist\n", $n);
       printf("%s --add title <list>          ... add title to current or named playlist\n", $n);
-      printf("%s --del title <list>          ... delete title from current or named playlist\n", $n);
+      printf("%s --delele title <list>       ... delete title from current or named playlist\n", $n);
       printf("%s --toggle <setting>          ... toggle a setting on/off\n", $n);
       printf("%s --help                      ... shows this screen\n", $n);
       printf("\nYou have used this software %d time%s so far! Thank yoU!", $usage, ($usage > 1) ? 's' : '');
@@ -125,11 +125,13 @@ class MUG_Player
    {
       foreach($this->commands as $cmd => $options)
       {
+
          switch ($cmd)
          {
             case 'build'  : $this->build($options); break;
             case 'dups'   : $this->build(['write' => false]); break;
             case 'play'   : $this->play($options); break;
+            case 'p'      : $this->play($options); break;
             case 'loop'   : $this->play($options, true); break;
             case 'find'   : $this->find($options); break;
             case 'search' : $this->find($options); break;
@@ -137,6 +139,7 @@ class MUG_Player
             case 'add'    : $this->add($options); break;
             case 'delete' : $this->delete($options); break;
             case 'view'   : $this->view($options); break;
+            case 'kill'   : $this->stop($options); break;
             case 'stop'   : $this->stop($options); break;
             case 'stats'  : $this->stats(); break;
             case 'at'     : $this->at($options); break;
@@ -256,7 +259,11 @@ class MUG_Player
       // Hmm, no match for MP3, so lets find out if a
       // playlist matches the tag
       if (!$matches = $this->findPlaylist($tag))
+      {
          $this->log("No song or playlist found for: $tag.");
+         return false;
+      }
+         
 
       $matchCnt = count($matches);
 
