@@ -12,7 +12,6 @@ define('SYSTEM_PLAYER', '/usr/bin/afplay');
 define('SYSTEM_KILLALL_BINARY', '/usr/bin/killall');
 define('SYSTEM_KILL_BINARY', '/bin/kill');
 define('SYSTEM_AT_SCHEDULER', '/usr/bin/at');
-define('DEBUG_MODE', getenv('USER') == "kabir" ? true : false);
 require_once('common/Utility.class');
 
 use \Utility as Util;
@@ -50,6 +49,8 @@ class MUG_Player
    private $sleepTime = 0;
    private $currentPlaylist = null;
    private $currentPlaylistSlug = null;
+   private $debugMode = false;
+   private $queue = [];
 
 
    public function __construct()
@@ -59,13 +60,17 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs  = "p:b";
-       $this->logArgs    = ["help", "play:", "loop:", "at:", "build", "stop", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:", "toggle:"];
+       $this->logArgs    = ["help", "play:", "next:", "queue", "loop:", "at:", "build", "stop", "kill", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:", "toggle:"];
 
        $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
        $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
        $this->logFile         = sprintf("%s/.mugplayer.log", $this->homeDir);
 
-      
+       if ($this->debugMode = $this->getSetting('debug'))
+       {
+          $this->log("** DEBUG MODE IS ENABLED ***");
+       }
+
        if (file_exists($this->jsonFile))
            $this->load();
 
@@ -78,6 +83,9 @@ class MUG_Player
          $this->currentPlaylistSlug = $this->db['current']['playlist']['slug']; 
       }
 
+      if (!empty($this->db["queue"]))
+          $this->queue = $this->db["queue"];
+
        if (!$this->commands  = Util::getArgs($this->shortArgs, $this->logArgs))
           $this->syntax();
    }
@@ -87,13 +95,14 @@ class MUG_Player
       return $this->settings = [ 
       
          'notification' => 'Show/hide notification.',
-         'logging'      => "Enable/disable logging to {$this->logFile}"
+         'logging'      => "Enable/disable logging to {$this->logFile}",
+         'debug'        => 'Enable/disable debug mode'
       ];
    }
 
    public function getSetting($x)
    {
-      return isset($this->db["settings"][$x]) ? $this->db["settings"][$x] : 1;
+      return isset($this->db["settings"][$x]) ? $this->db["settings"][$x] : 0;
    }
    
    public function syntax()
@@ -104,6 +113,8 @@ class MUG_Player
       printf("%s version: %s\n", $n, self::VERSION);
       printf("%s --build                     ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
       printf("%s --play title|tag|playlist   ... plays song by title or tag or entire playlist it\n", $n);
+      printf("%s --next title|tag            ... queues the next song named by title or tag\n", $n);
+      printf("%s --queue [clear]             ... shows the current queue or clears it when 'clear' option is provided.\n", $n);
       printf("%s --loop title|tag|playlist   ... plays song by title or tag or entire playlist until stopped\n", $n);
       printf("%s --at hh:mm:ss  tag|playlist ... play the song or playlist at hh:mm:ss\n", $n);
       printf("%s --stop                      ... stop playing\n", $n);
@@ -131,6 +142,8 @@ class MUG_Player
             case 'build'  : $this->build($options); break;
             case 'dups'   : $this->build(['write' => false]); break;
             case 'play'   : $this->play($options); break;
+            case 'next'   : $this->next($options); break;
+            case 'queue'  : $this->queue($options); break;
             case 'p'      : $this->play($options); break;
             case 'loop'   : $this->play($options, true); break;
             case 'find'   : $this->find($options); break;
@@ -166,10 +179,10 @@ class MUG_Player
          $this->db["settings"][$setting] ^= 1;
       }
 
-   
-      foreach($this->db["settings"] as $setting => $status)
+      foreach($this->settings as $setting)
       {
-         printf("%-30s ... %s\n", $setting, ($status) ? 'enabled' : 'disabled');
+         $status = $this->getSetting($setting);
+         printf("%-60s ... %s\n", $setting, ($status) ? 'enabled' : 'disabled');
       }
 
       $this->write();
@@ -229,6 +242,52 @@ class MUG_Player
       }
    }
 
+   private function queue($tag)
+   {
+      if (!$this->queue)
+          die("Nothing queued yet!");
+
+      if ($this->queue['playing_now'])
+          $playingSong = $this->queue['playing_now'];
+      
+      foreach($this->queue as $i => $hash)
+      {
+         $song = $this->db["songs"][$hash];
+         $playing = ($hash == $playingSong) ? ' (playing now)' : '';
+         printf("%d. %s %s\n", $i+1, $song['meta']['title'], $playing);
+      }
+   }
+
+   private function next($tag)
+   {
+      $this->getChosenTrack($tag);
+      $matches  = $this->findSong($tag);
+      $matchCnt = count($matches);
+
+      // Only one MP3 matches so queue it
+      if ($matchCnt == 1)
+      {
+         $song          = $matches[0]['entry'];
+         $this->queue[] = $song['hash']; 
+
+      // Hmm, we have more than one match so..
+      } else if($matchCnt > 1) {
+ 
+         // If the user hasn't selected one using #n, 
+         // show the list of matches 
+         if (is_null($this->chosenTrack))
+             return $this->list($matches);
+
+         // User selected #n track so lets play it   
+         $song          = $matches[$this->chosenTrack]['entry'];
+         $this->queue[] = $song['hash']; 
+      } 
+
+      print_r($this->queue);
+      $this->db["queue"] = $this->queue;
+      $this->write();
+   }
+
    private function play($tag, $loop = false)
    {
       $this->getChosenTrack($tag);
@@ -264,7 +323,6 @@ class MUG_Player
          return false;
       }
          
-
       $matchCnt = count($matches);
 
       // Only one MP3 matches so play it
@@ -372,7 +430,7 @@ class MUG_Player
       }
    }
 
-   private function playSong($path)
+   private function DISABLED_playSong($path)
    {
       // Stop playing 
       $this->stop();
@@ -393,6 +451,46 @@ class MUG_Player
 
       $this->write();
       $this->close();
+   }
+
+   private function playSong($path)
+   {
+      // Stop playing 
+      $this->stop();
+
+      $entry = $this->db['songs'][$this->currentSong];
+      $this->db['songs'][$this->currentSong]['stats']['count']++;
+      $this->db['songs'][$this->currentSong]['stats']['last_played'] = date('m/d/Y h:i:s');
+      $this->db['current']['song'] = $this->currentSong;
+      $this->write();
+
+      $pl = [];
+
+      $pl['name']   = 'current';
+      $pl['list'][] = [  
+                       'id'     => $entry['hash'],
+                       'title'  => $entry['meta']['title'],
+                       'count'  => 1
+                      ];
+
+      $pl['count'] = 1;
+
+      return $this->playList($pl, false);
+   }
+
+   private function playLoop($entry)
+   {
+        $pl = [];
+
+        $pl['name']   = 'loop';
+        $pl['list'][] = [  
+                         'id'     => $entry['hash'],
+                         'title'  => $entry['meta']['title'],
+                         'count'  => 1
+                        ];
+
+        $pl['count'] = 1;
+        $this->playList($pl, true);
    }
 
    private function playList($pl, $loop = false)
@@ -422,7 +520,7 @@ class MUG_Player
       $script .= "# YouTube channel: https://macuser.group\n";
       $script .= "##########################################\n\n";
 
-      $timeFlag = (DEBUG_MODE) ? '-t 10' : '';
+      $timeFlag = ($this->debugMode) ? '-t 10' : '';
 
       if ($loop)
       {
@@ -464,21 +562,6 @@ class MUG_Player
       $this->_exec($scriptFile);
       $this->close();
    
-   }
-
-   private function playLoop($entry)
-   {
-        $pl = [];
-
-        $pl['name']   = 'loop';
-        $pl['list'][] = [  
-                         'id'     => $entry['hash'],
-                         'title'  => $entry['meta']['title'],
-                         'count'  => 1
-                        ];
-
-        $pl['count'] = 1;
-        $this->playList($pl, true);
    }
 
    private function stop($options = null)
@@ -867,6 +950,7 @@ class MUG_Player
    private function getMeta($path)
    {
        $title = preg_replace("/\.mp3$/i", '', basename($path));
+       $title = preg_replace("/[\-\._\~]+/", ' ', $title);
        $data  = ['title' => $title];
 
        return $data;
@@ -895,7 +979,7 @@ class MUG_Player
       if ($logging)
          file_put_contents($this->logFile, $logEntry, FILE_APPEND);
 
-      if (DEBUG_MODE)
+      if ($this->debugMode)
       {
          if (is_array($x) || is_object($x))
              $x = print_r($x, true);
