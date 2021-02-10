@@ -297,6 +297,7 @@ class MUG_Player
          $this->queue[] = $song['hash']; 
       } 
 
+
       $this->db["queue"] = $this->queue;
       $this->write();
    }
@@ -377,7 +378,7 @@ class MUG_Player
       if (!$matches = $this->findSong($tag))
           return $this->log("No match found.");
 
-      $this->list($matches);
+      $this->list($matches, true);
    }
 
    private function findPlaylist($tag)
@@ -452,7 +453,7 @@ class MUG_Player
       return false;
    }
 
-   private function list($list)
+   private function list($list, $showPath = false)
    {
       foreach($list as $i => $r)
       {
@@ -460,7 +461,8 @@ class MUG_Player
          $index = $r['index'];
          $meta  = $entry['meta'];
          $title = $meta['title'];
-         printf("%4d %s\n", $i+1, $title);
+         $path  = ($showPath == true) ? $entry['path'] : '';
+         printf("%4d %s %s\n", $i+1, $title, $path);
       }
    }
 

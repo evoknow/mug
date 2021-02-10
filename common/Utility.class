@@ -59,16 +59,28 @@ class Utility {
      $list = [];
      $cnt  = 0; 
 
+     $finfo = finfo_open(FILEINFO_MIME_TYPE);
+
      foreach ($iterator as $info) 
      {
         $cnt++;
         $file = $info->getPathname();
-
+        $mimeType = @finfo_file($finfo, $file);
+       
+        if ($mimeType != 'audio/mpeg')
+        {
+          // echo "SKIPPING $file MIME_TYPE=$mimeType\n";
+          continue;
+        }
+        
         if ($showProgress)
            echo "\033[31m$cnt found $file\033[37m\r";
+        
 
         $list[] = $file;
      }
+
+     finfo_close($finfo);
 
      return $list;
   }
