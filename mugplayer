@@ -112,23 +112,23 @@ class MUG_Player
 
       $n = $this->scriptName;
       printf("%s version: %s\n", $n, self::VERSION);
-      printf("%s --build                       ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
-      printf("%s --play title|tag|playlist     ... plays song by title or tag or entire playlist it\n", $n);
-      printf("%s --next title|tag              ... queues the next song named by title or tag\n", $n);
-      printf("%s --queue show [play] [clear]   ... show/play/clear current queue", $n);
-      printf("%s --loop title|tag|playlist     ... plays song by title or tag or entire playlist until stopped\n", $n);
-      printf("%s --at hh:mm:ss  tag|playlist   ... play the song or playlist at hh:mm:ss\n", $n);
-      printf("%s --stop                        ... stop playing\n", $n);
-      printf("%s --kill                        ... same as --stop\n", $n);
-      printf("%s --stats                       ... show stats\n", $n);
-      printf("%s --search title | tag          ... finds songs by title or tag\n", $n);
-      printf("%s --dups                        ... show dups\n", $n);
-      printf("%s --create name                 ... create a playlist\n", $n);
-      printf("%s --view name                   ... vew a playlist\n", $n);
-      printf("%s --add title <list>            ... add title to current or named playlist\n", $n);
-      printf("%s --delele title <list>         ... delete title from current or named playlist\n", $n);
-      printf("%s --toggle <setting>            ... toggle a setting on/off\n", $n);
-      printf("%s --help                        ... shows this screen\n", $n);
+      printf("%s --build                            ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
+      printf("%s --play title|tag|playlist          ... plays song by title or tag or entire playlist it\n", $n);
+      printf("%s --next title|tag                   ... queues the next song named by title or tag\n", $n);
+      printf("%s --queue show [play] [skip] [clear] ... show/play/skip/clear current queue", $n);
+      printf("%s --loop title|tag|playlist          ... plays song by title or tag or entire playlist until stopped\n", $n);
+      printf("%s --at hh:mm:ss  tag|playlist        ... play the song or playlist at hh:mm:ss\n", $n);
+      printf("%s --stop                             ... stop playing\n", $n);
+      printf("%s --kill                             ... same as --stop\n", $n);
+      printf("%s --stats                            ... show stats\n", $n);
+      printf("%s --search title | tag               ... finds songs by title or tag\n", $n);
+      printf("%s --dups                             ... show dups\n", $n);
+      printf("%s --create name                      ... create a playlist\n", $n);
+      printf("%s --view name                        ... vew a playlist\n", $n);
+      printf("%s --add title <list>                 ... add title to current or named playlist\n", $n);
+      printf("%s --delele title <list>              ... delete title from current or named playlist\n", $n);
+      printf("%s --toggle <setting>                 ... toggle a setting on/off\n", $n);
+      printf("%s --help                             ... shows this screen\n", $n);
       printf("\nYou have used this software %d time%s so far! Thank yoU!", $usage, ($usage > 1) ? 's' : '');
       printf("\nSee: %s for usage/tutorial videos.\n\n", self::COPYRIGHT);
       exit;
@@ -248,16 +248,27 @@ class MUG_Player
 
    private function queue($tag)
    {
- 
+  
       if (!$this->queue)
           die("Nothing queued yet!");
 
       if (preg_match("/play/i", $tag))
+      {
+          $this->stop();
           return $this->play('queue');
-         
+      }
+
+      if (preg_match("/skip/i", $tag))
+      {
+         if ($this->advanceQueue())
+         {
+            $this->stop();
+            return $this->playSong();
+         }
+      }
+
       if (preg_match("/clear/i", $tag))
       {
-         echo "CAME HERE to clear $tag\n";
          unset($this->db["queue"]);
          unset($this->db["current"]['queue-pos']);
          return $this->write();
@@ -373,6 +384,34 @@ class MUG_Player
       $this->playSong();
 
    }
+
+   private function advanceQueue()
+   {
+      if (!isset($this->db["queue"]))
+         return false;
+
+      $qsize = count($this->db["queue"]);
+
+      $nowPlaying = 0;
+
+      if (isset($this->db['current']['queue-pos']))
+      {
+         $nowPlaying = $this->db['current']['queue-pos'];
+      }
+
+      $nowPlaying++;
+
+      $nowPlaying = ($nowPlaying >= $qsize) ? 0 : $nowPlaying;
+
+      $this->db['current']['queue-pos'] = $nowPlaying;
+      $this->currentSong = $this->db["queue"][$nowPlaying];
+      $this->write();
+
+      return true;
+
+   }
+
+
    private function find($tag)
    {
       if (!$matches = $this->findSong($tag))
@@ -635,6 +674,7 @@ class MUG_Player
       $dups = [];
       foreach($list as $file)
       {
+
          $key = Util::getFileHash($file);
          if (empty($key)) continue;
 
