@@ -134,9 +134,7 @@ class Utility {
             $done = true;
      }
 
-   
      return ($toupper) ? strtoupper($userResponse) : $userResponse;
-
   }
 
 } // End of Utility class

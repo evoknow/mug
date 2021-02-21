@@ -26,6 +26,9 @@ Syntax: `mugplayer --<optoin> [value]`
 * --at "hh:mm:ss" title.......... play song by title at hh:mm:ss
 * --stats ....................... shows stats that reveals which songs (MP3) you play the most, when, etc.
 * --dups ........................ shows duplicate songs in your system. 
+* --skip ........................ skips to next song in current queue (does not work with playlists yet)
+* --search tag | title .......... finds song by tag or title
+* --next tag | title ............... queues the song to play next
 
 ## Planned options: ##
 * --delete <playlist> .............. deletes named playlist
@@ -33,7 +36,6 @@ Syntax: `mugplayer --<optoin> [value]`
 * --tag title | playlist <tag> ..... tag the named title or playlist
 * --xtag title | playlist <tag>..... removes the named tag from song or playlist
 * --dups remove..................... creates remove-dups.sh script that you can run to delete dups (BE CAREFUL! USE AT OWN RISK!)
-* --next tag | title ............... queues the song to play next
 * --purge tag | title .............. removes a song by title or tag from database (not the actual mp3 file)
 * --rmfile tag | title ............. deletes actual MP3 files matching the tag or title
 

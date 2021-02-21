@@ -61,7 +61,7 @@ class MUG_Player
        $this->startTime  = microtime(true);
        $this->scriptName = basename(__FILE__);
        $this->shortArgs  = "p:bs:";
-       $this->logArgs    = ["help", "play:", "next:", "queue:", "loop:", "at:", "build", "stop", "kill", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:", "toggle:"];
+       $this->longArgs    = ["help", "play:", "next:", "skip", "queue:", "loop:", "at:", "build", "stop", "kill", "stats", "dups", "find:", "search:", "create:", "add:", "view:", "delete:", "toggle:"];
 
        $this->jsonFile        = sprintf("%s/.mugplayer.json", $this->homeDir);
        $this->playlistPIDFile = sprintf("%s/.mugplayer.playlist.pid", $this->homeDir);
@@ -87,7 +87,7 @@ class MUG_Player
       if (!empty($this->db["queue"]))
           $this->queue = $this->db["queue"];
 
-       if (!$this->commands  = Util::getArgs($this->shortArgs, $this->logArgs))
+       if (!$this->commands  = Util::getArgs($this->shortArgs, $this->longArgs))
           $this->syntax();
    }
 
@@ -115,6 +115,7 @@ class MUG_Player
       printf("%s --build                            ... builds the %s/.mugplayer.json database\n", $n, $this->homeDir);
       printf("%s --play title|tag|playlist          ... plays song by title or tag or entire playlist it\n", $n);
       printf("%s --next title|tag                   ... queues the next song named by title or tag\n", $n);
+      printf("%s --skip                             ... skips to the next song in queue\n", $n);
       printf("%s --queue show [play] [skip] [clear] ... show/play/skip/clear current queue", $n);
       printf("%s --loop title|tag|playlist          ... plays song by title or tag or entire playlist until stopped\n", $n);
       printf("%s --at hh:mm:ss  tag|playlist        ... play the song or playlist at hh:mm:ss\n", $n);
@@ -129,7 +130,7 @@ class MUG_Player
       printf("%s --delele title <list>              ... delete title from current or named playlist\n", $n);
       printf("%s --toggle <setting>                 ... toggle a setting on/off\n", $n);
       printf("%s --help                             ... shows this screen\n", $n);
-      printf("\nYou have used this software %d time%s so far! Thank yoU!", $usage, ($usage > 1) ? 's' : '');
+      printf("\nYou have used this software %d time%s so far! Thank you!", $usage, ($usage > 1) ? 's' : '');
       printf("\nSee: %s for usage/tutorial videos.\n\n", self::COPYRIGHT);
       exit;
    }
@@ -145,6 +146,7 @@ class MUG_Player
             case 'dups'   : $this->build(['write' => false]); break;
             case 'play'   : $this->play($options); break;
             case 'next'   : $this->next($options); break;
+            case 'skip'   : $this->skip($options); break;
             case 'queue'  : $this->queue($options); break;
             case 'p'      : $this->play($options); break;
             case 'loop'   : $this->play($options, true); break;
@@ -283,6 +285,17 @@ class MUG_Player
       }
    }
 
+   private function skip()
+   {
+      if ($this->advanceQueue())
+      {
+         $this->stop();
+         return $this->playSong();
+      }
+
+      return false;
+   }
+   
    private function next($tag)
    {
       $this->getChosenTrack($tag);
