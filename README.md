@@ -1,4 +1,4 @@
-# MUG #
+# MUGPLAYER #
 Wecome to macOS User Group (MUG) Scripts and Files
 Visit our YouTube Channel: https://macuser.group
 
